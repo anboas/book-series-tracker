@@ -222,6 +222,19 @@ function seriesStateCountsFor(series = []) {
   }, {});
 }
 
+function platformStatsFor(series = [], platforms = []) {
+  const counts = Object.fromEntries(platforms.map((platform) => [platform.id, 0]));
+  for (const book of series.flatMap((item) => item.books || [])) {
+    for (const platformId of book.platforms || []) {
+      counts[platformId] = (counts[platformId] || 0) + 1;
+    }
+  }
+  return platforms.map((platform) => ({
+    ...platform,
+    count: counts[platform.id] || 0,
+  }));
+}
+
 function nextMissingBookFor(series) {
   return [...(series.allBooks || series.books || [])]
     .filter((book) => book.status === "unowned")
@@ -293,6 +306,7 @@ function App() {
   const visibleStats = statsFor(filteredSeries);
   const totalStats = statsFor(library.series || []);
   const stateCounts = seriesStateCountsFor(library.series || []);
+  const platformStats = platformStatsFor(library.series || [], library.platforms || []);
   const selected = selectedBook;
   const clearSelectedBook = () => {
     setSelectedBook(null);
@@ -324,6 +338,16 @@ function App() {
         <StateStat label="Missing" value={stateCounts.missing || 0} tone="missing" />
         <StateStat label="Partial" value={stateCounts.partial || 0} tone="partial" />
         <StateStat label="Collected" value={stateCounts.collected || 0} tone="collected" />
+      </section>
+
+      <section className="platform-strip" aria-label="Platform summary" data-platform-summary>
+        {platformStats.map((platform) => (
+          <article key={platform.id} style={{ "--platform-color": platform.color || "#64748b" }}>
+            <span aria-hidden="true" />
+            <strong>{platform.label}</strong>
+            <em>{platform.count}</em>
+          </article>
+        ))}
       </section>
 
       <section className="control-bar" aria-label="Library controls">

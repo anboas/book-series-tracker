@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 
 const DEFAULT_PROD_URL = "https://book-series-tracker.pages.dev/";
+const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
+const EXPECTED_DATA = {
+  updatedAt: "2026-08-31",
+  books: 192,
+  read: 169,
+  missing: 23,
+};
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -16,8 +23,36 @@ function normalizeBaseUrl(value) {
   return url;
 }
 
+function expectedValue(name, fallback) {
+  const value = argValue(name);
+  return value ? Number(value) : fallback;
+}
+
 function statusText(response) {
   return `${response.status} ${response.statusText}`.trim();
+}
+
+async function fetchGithubData() {
+  const response = await fetchWithCheck(GITHUB_API_DATA_URL, {
+    headers: { accept: "application/vnd.github.raw+json" },
+  });
+  assert.equal(response.status, 200, `GitHub data should return 200, got ${statusText(response)}`);
+  const text = await response.text();
+  const parsed = JSON.parse(text);
+  if (parsed?.content) {
+    const compact = parsed.content.replace(/\s/g, "");
+    return JSON.parse(Buffer.from(compact, "base64").toString("utf8"));
+  }
+  return parsed;
+}
+
+function statsFor(library) {
+  const books = (library.series || []).flatMap((series) => series.books || []);
+  return {
+    books: books.length,
+    read: books.filter((book) => book.status === "read").length,
+    missing: books.filter((book) => book.status === "unowned").length,
+  };
 }
 
 async function fetchWithCheck(url, options = {}) {
@@ -72,12 +107,22 @@ for (const assetUrl of [...assets.scripts, ...assets.stylesheets]) {
   assert.equal(assetResponse.status, 200, `Asset should return 200: ${assetUrl} got ${statusText(assetResponse)}`);
 }
 
+const data = await fetchGithubData();
+const stats = statsFor(data);
+assert.equal(data.updatedAt, argValue("--expect-updated-at") || EXPECTED_DATA.updatedAt, "Data updatedAt should match the expected snapshot");
+assert.equal(stats.books, expectedValue("--expect-books", EXPECTED_DATA.books), "Data book count should match the expected snapshot");
+assert.equal(stats.read, expectedValue("--expect-read", EXPECTED_DATA.read), "Data read count should match the expected snapshot");
+assert.equal(stats.missing, expectedValue("--expect-missing", EXPECTED_DATA.missing), "Data missing count should match the expected snapshot");
+
 console.log(
   [
     `Verified production smoke for ${baseUrl.href}`,
     "homepage=200",
     `js_assets=${assets.scripts.length}`,
     `css_assets=${assets.stylesheets.length}`,
+    `updated_at=${data.updatedAt}`,
+    `books=${stats.books}`,
+    `read=${stats.read}`,
+    `missing=${stats.missing}`,
   ].join(" "),
 );
-

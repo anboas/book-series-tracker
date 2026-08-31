@@ -46,6 +46,7 @@ button {
 
 .app-header,
 .series-state-strip,
+.platform-strip,
 .control-bar,
 .source-row,
 .workspace,
@@ -118,6 +119,44 @@ button {
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.platform-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.platform-strip article {
+  display: inline-grid;
+  grid-template-columns: 12px auto auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(16, 21, 34, 0.88);
+}
+
+.platform-strip article > span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--platform-color);
+}
+
+.platform-strip strong,
+.platform-strip em {
+  color: var(--text);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.platform-strip em {
+  color: var(--muted);
 }
 
 .brand-block {

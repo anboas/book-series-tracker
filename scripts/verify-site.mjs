@@ -62,6 +62,7 @@ try {
     assert.match(stateSummary, /40\s+Read all/i, "state summary should count fully read series");
     assert.match(stateSummary, /3\s+Gap/i, "state summary should count mostly covered gap series");
     assert.match(stateSummary, /4\s+Missing/i, "state summary should count missing-heavy series");
+    assert.match(await page.locator("[data-platform-summary]").innerText(), /Audible\s+169/i, "platform summary should count Audible titles");
     await page.locator("[data-missing-series-toggle]").click();
     assert.equal(await page.locator("[data-series-stack] > article").count(), 7, "missing-series view should show only series with gaps");
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').count(), 0, "missing-series view should hide complete series");
