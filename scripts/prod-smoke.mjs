@@ -4,9 +4,9 @@ const DEFAULT_PROD_URL = "https://book-series-tracker.pages.dev/";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
 const EXPECTED_DATA = {
   updatedAt: "2026-08-31",
-  books: 192,
+  books: 201,
   read: 169,
-  missing: 23,
+  missing: 32,
   platforms: 2,
   audible: 169,
   audiobookshelf: 0,
