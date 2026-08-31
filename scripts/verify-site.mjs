@@ -35,6 +35,7 @@ try {
     await page.waitForSelector("[data-book-series-app]");
     const text = await page.locator("[data-book-series-app]").innerText();
     assert.match(text, /Book Series Tracker/);
+    assert.match(text, /SOURCE: GITHUB/);
     assert.match(text, /He Who Fights with Monsters/);
     assert.match(text, /Dungeon Crawler Carl/);
     assert.match(text, /Defiance of the Fall/);
