@@ -1004,6 +1004,10 @@ h1 {
   transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
+.book-card > span {
+  line-height: 1.25;
+}
+
 .book-card.active {
   outline: none;
   box-shadow:
