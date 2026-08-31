@@ -916,9 +916,7 @@ h1 {
 }
 
 .library-app[data-density="compact"] .series-timeline,
-.library-app[data-density="list"] .series-timeline,
-.series-row:hover .series-timeline,
-.series-row:focus-within .series-timeline {
+.library-app[data-density="list"] .series-timeline {
   display: flex;
 }
 

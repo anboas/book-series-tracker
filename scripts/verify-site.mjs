@@ -97,8 +97,10 @@ try {
     assert.match(dccBadges, /1 read/i, "series header should show read count badge");
     assert.match(dccBadges, /6 missing/i, "series header should show missing count badge");
     assert.doesNotMatch(dccBadges, /7 total/i, "series header should avoid redundant total count chrome");
-    assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline] button').count(), 7, "series timeline should show one chip per DCC book");
-    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline]').innerText(), /1[\s\S]*7/, "series timeline should expose ordered book chips");
+    const dccTimeline = page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline]');
+    assert.equal(await dccTimeline.locator("button").count(), 7, "series timeline should keep one chip per DCC book");
+    await page.locator('[data-series-id="dungeon-crawler-carl"]').hover();
+    assert.equal(await dccTimeline.isVisible(), false, "series timeline should not reveal chips on row hover");
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-platform-focus-count"), "1", "platform focus count should use full series data");
     assert.ok(await page.locator('[data-book-card][data-platform-match="true"]').count() >= 160, "Audible focus should mark matching books");
     assert.ok(await page.locator('[data-book-card][data-platform-match="false"]').count() >= 20, "Audible focus should mute missing gaps without hiding them");
@@ -139,6 +141,7 @@ try {
     await page.locator("[data-density-toggle]").click();
     assert.equal(await page.locator("[data-book-series-app]").getAttribute("data-density"), "compact", "compact density should be active");
     assert.match(page.url(), /density=compact/, "compact density should be shareable in the URL");
+    assert.match(await dccTimeline.innerText(), /1[\s\S]*7/, "compact density should expose ordered book chips");
     await page.locator("[data-density-toggle]").click();
     const firstCard = page.locator("[data-book-card]").first();
     const secondCard = page.locator("[data-book-card]").nth(1);
