@@ -1504,12 +1504,12 @@ h1 {
 
   .series-row header {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 5px;
   }
 
   .series-row h2 {
     margin-bottom: 6px;
-    font-size: 19px;
+    font-size: 18px;
   }
 
   .series-meta-line {
