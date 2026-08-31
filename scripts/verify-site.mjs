@@ -188,10 +188,8 @@ try {
     await page.locator("[data-missing-series-toggle]").click();
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-series-state"), "missing", "Dungeon Crawler Carl should show missing series state");
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').getAttribute("data-series-state"), "read", "fully tracked Audible series should show read-all state");
-    if (viewport.width > 640) {
-      assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-meter]').innerText(), /MISSING 6/);
-      assert.match(await page.locator('[data-series-id="the-stormlight-archive"] [data-series-meter]').innerText(), /READ ALL/);
-    }
+    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-badges]').innerText(), /1 read[\s\S]*6 missing/i);
+    assert.match(await page.locator('[data-series-id="the-stormlight-archive"] [data-series-badges]').innerText(), /Read all/i);
     assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "he-who-fights-with-monsters", "library sort should preserve library order");
     await page.locator("[data-series-sort]").selectOption("coverage");
     assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "dungeon-crawler-carl", "least-covered sort should surface Dungeon Crawler Carl first");
@@ -236,6 +234,12 @@ try {
     await page.locator("[data-book-card]").first().click();
     assert.equal(await page.locator("[data-book-detail]").count(), 1, "selecting a book should show the focus dock");
     assert.equal(await page.locator("[data-book-card].active").count(), 1, "selecting a book should mark one active card");
+    const activeCardRing = await page.locator("[data-book-card].active").evaluate((node) => {
+      const styles = getComputedStyle(node);
+      return { outline: styles.outlineStyle, shadow: styles.boxShadow };
+    });
+    assert.equal(activeCardRing.outline, "none", "active book-card ring should not draw outside the clipped rail");
+    assert.match(activeCardRing.shadow, /inset/i, "active book-card ring should be inset");
     await page.locator(".app-header").click();
     assert.equal(await page.locator("[data-book-detail]").count(), 0, "clicking away should clear the focus dock");
     assert.equal(await page.locator("[data-book-card].active").count(), 0, "clicking away should clear active book focus");
