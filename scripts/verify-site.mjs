@@ -45,6 +45,13 @@ try {
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 180, "should render the Audible title cards and derived gaps");
     assert.equal(await page.locator("[data-book-detail]").count(), 1, "should render selected book detail");
+    const scrollableRails = await page.locator("[data-book-rail]").evaluateAll((rails) => (
+      rails.filter((rail) => rail.scrollWidth > rail.clientWidth + 4).length
+    ));
+    assert.ok(scrollableRails >= 1, "at least one series row should scroll horizontally inside the row");
+    await page.locator("[data-book-rail]").first().evaluate((rail) => {
+      rail.scrollLeft = rail.scrollWidth;
+    });
     await page.locator("[data-status-filter] button", { hasText: "Missing" }).click();
     assert.ok(await page.locator("[data-book-card]").count() >= 10, "missing filter should retain derived unread gaps");
     const overflow = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);

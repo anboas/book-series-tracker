@@ -133,6 +133,14 @@ function App() {
       </section>
 
       <div className="workspace">
+        <aside className="detail-panel" data-book-detail>
+          {selected ? (
+            <BookDetail book={selected} platforms={platforms} />
+          ) : (
+            <div className="empty-detail">No books match the current filter.</div>
+          )}
+        </aside>
+
         <section className="series-stack" data-series-stack>
           {filteredSeries.map((series) => (
             <SeriesRow
@@ -144,14 +152,6 @@ function App() {
             />
           ))}
         </section>
-
-        <aside className="detail-panel" data-book-detail>
-          {selected ? (
-            <BookDetail book={selected} platforms={platforms} />
-          ) : (
-            <div className="empty-detail">No books match the current filter.</div>
-          )}
-        </aside>
       </div>
     </main>
   );
