@@ -210,7 +210,19 @@ function BookCard({ book, platforms, active, onSelect }) {
     >
       <span className={`status-pill status-pill--${status.tone}`}>{status.label}</span>
       <span className="book-order">#{book.order}</span>
-      <img src={book.coverUrl} alt="" loading="lazy" />
+      <span className="cover-frame" aria-hidden="true">
+        <span className="cover-title">{book.title}</span>
+        {book.coverUrl ? (
+          <img
+            src={book.coverUrl}
+            alt=""
+            loading="lazy"
+            onError={(event) => {
+              event.currentTarget.hidden = true;
+            }}
+          />
+        ) : null}
+      </span>
       <span className="book-title">{book.title}</span>
       <span className="platform-dots" aria-label="Platforms">
         {(book.platforms || []).length ? book.platforms.map((platformId) => (
@@ -227,11 +239,23 @@ function BookDetail({ book, platforms }) {
 
   return (
     <>
-      <img className="detail-cover" src={book.coverUrl} alt="" />
+      <span className="detail-cover-frame" aria-hidden="true">
+        <span className="cover-title">{book.title}</span>
+        {book.coverUrl ? (
+          <img
+            className="detail-cover"
+            src={book.coverUrl}
+            alt=""
+            onError={(event) => {
+              event.currentTarget.hidden = true;
+            }}
+          />
+        ) : null}
+      </span>
       <div className="detail-copy">
         <span className={`status-pill status-pill--${status.tone}`}>{status.label}</span>
         <h2>{book.title}</h2>
-        <p>{book.seriesTitle} book {book.order}</p>
+        <p>{book.seriesTitle} book {book.order}{book.author ? ` by ${book.author}` : ""}</p>
       </div>
       <div className="detail-platforms">
         <span>Platforms</span>
@@ -244,4 +268,3 @@ function BookDetail({ book, platforms }) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
-

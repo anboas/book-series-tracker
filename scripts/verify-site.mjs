@@ -36,13 +36,16 @@ try {
     const text = await page.locator("[data-book-series-app]").innerText();
     assert.match(text, /Book Series Tracker/);
     assert.match(text, /He Who Fights with Monsters/);
-    assert.match(text, /The Land/);
+    assert.match(text, /Dungeon Crawler Carl/);
+    assert.match(text, /Defiance of the Fall/);
+    assert.match(text, /The Wheel of Time/);
     assert.match(text, /Arcane Ascension/);
-    assert.equal(await page.locator("[data-series-stack] > article").count(), 3, "should render three seeded series");
-    assert.equal(await page.locator("[data-book-card]").count(), 25, "should render seeded book cards");
+    assert.doesNotMatch(text, /The Land/);
+    assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
+    assert.ok(await page.locator("[data-book-card]").count() >= 180, "should render the Audible title cards and derived gaps");
     assert.equal(await page.locator("[data-book-detail]").count(), 1, "should render selected book detail");
     await page.locator("[data-status-filter] button", { hasText: "Missing" }).click();
-    assert.ok(await page.locator("[data-book-card]").count() >= 1, "missing filter should retain unread gaps");
+    assert.ok(await page.locator("[data-book-card]").count() >= 10, "missing filter should retain derived unread gaps");
     const overflow = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);
     assert.ok(overflow <= 2, `viewport ${viewport.width} overflow ${overflow}`);
     await page.close();
@@ -52,4 +55,3 @@ try {
   await browser.close();
   server.kill();
 }
-
