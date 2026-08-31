@@ -1,0 +1,23 @@
+{
+  "name": "book-series-tracker",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "verify": "npm run build && node scripts/verify-site.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "vite": "^8.2.2",
+    "typescript": "^5.9.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.0"
+  }
+}
