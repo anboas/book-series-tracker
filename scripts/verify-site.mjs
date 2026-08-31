@@ -31,8 +31,9 @@ const browser = await chromium.launch({
 try {
   for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     const page = await browser.newPage({ viewport });
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
+    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-book-series-app]");
+    await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
     const text = await page.locator("[data-book-series-app]").innerText();
     assert.match(text, /Book Series Tracker/);
     assert.match(text, /SOURCE: GITHUB/);
@@ -48,6 +49,22 @@ try {
     assert.doesNotMatch(text, /The Land/);
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
+    await page.locator("[data-library-search]").fill("doomsday");
+    assert.equal(await page.locator("[data-series-stack] > article").count(), 1, "search should hide non-matching series rows");
+    assert.equal(await page.locator("[data-book-card]").count(), 1, "search should narrow visible books");
+    assert.match(await page.locator("[data-book-series-app]").innerText(), /Carl's Doomsday Scenario/);
+    await page.locator("[data-status-filter] button", { hasText: "Missing" }).click();
+    await page.locator("[data-series-sort]").selectOption("coverage");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector("[data-book-series-app]");
+    await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
+    assert.equal(await page.locator("[data-library-search]").inputValue(), "doomsday", "search should persist across reloads");
+    assert.equal(await page.locator("[data-series-sort]").inputValue(), "coverage", "series sort should persist across reloads");
+    assert.match(await page.locator("[data-status-filter] button.active").innerText(), /Missing/, "status filter should persist across reloads");
+    assert.equal(await page.locator("[data-series-stack] > article").count(), 1, "persisted search and status should restore the filtered row");
+    await page.locator("[data-library-search]").fill("");
+    await page.locator("[data-status-filter] button", { hasText: "All" }).click();
+    await page.locator("[data-series-sort]").selectOption("library");
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-series-state"), "missing", "Dungeon Crawler Carl should show missing series state");
     assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-meter]').innerText(), /MISSING 6/);
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').getAttribute("data-series-state"), "read", "fully tracked Audible series should show read-all state");
@@ -62,12 +79,13 @@ try {
     await page.locator('[data-series-id="dungeon-crawler-carl"]').scrollIntoViewIfNeeded();
     const dccCoverStates = await page.locator('[data-series-id="dungeon-crawler-carl"] img').evaluateAll(async (images) => {
       await Promise.all(images.map((image) => {
-        if (image.complete) return undefined;
+        image.loading = "eager";
+        if (image.complete) return image.decode?.().catch(() => undefined);
         return new Promise((resolve) => {
           image.addEventListener("load", resolve, { once: true });
           image.addEventListener("error", resolve, { once: true });
-          setTimeout(resolve, 5000);
-        });
+          setTimeout(resolve, 10000);
+        }).then(() => image.decode?.().catch(() => undefined));
       }));
       return images.map((image) => ({ hidden: image.hidden, naturalWidth: image.naturalWidth }));
     });

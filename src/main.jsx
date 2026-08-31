@@ -5,6 +5,7 @@ import "./styles.css";
 
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
+const CONTROL_STORAGE_KEY = "book-series-tracker:controls";
 const coverResolutionCache = new Map();
 const STATUS = {
   all: { label: "All", tone: "neutral" },
@@ -56,6 +57,35 @@ const SERIES_SORT = {
     compare: (a, b) => a.title.localeCompare(b.title) || a.sortIndex - b.sortIndex,
   },
 };
+
+function readStoredControls() {
+  const defaults = {
+    statusFilter: "all",
+    platformFilter: "all",
+    seriesSort: "library",
+    searchQuery: "",
+  };
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || "{}");
+    return {
+      statusFilter: STATUS[parsed.statusFilter] ? parsed.statusFilter : defaults.statusFilter,
+      platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : defaults.platformFilter,
+      seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : defaults.seriesSort,
+      searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : defaults.searchQuery,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function writeStoredControls(controls) {
+  try {
+    localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify(controls));
+  } catch {
+    // Storage can be unavailable in private contexts; controls still work for the session.
+  }
+}
 
 function useLibrary() {
   const [library, setLibrary] = useState(fallbackLibrary);
@@ -183,25 +213,55 @@ function seriesStateFor(stats) {
 function App() {
   const { library, source } = useLibrary();
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [platformFilter, setPlatformFilter] = useState("all");
-  const [seriesSort, setSeriesSort] = useState("library");
+  const initialControls = useMemo(() => readStoredControls(), []);
+  const [statusFilter, setStatusFilter] = useState(initialControls.statusFilter);
+  const [platformFilter, setPlatformFilter] = useState(initialControls.platformFilter);
+  const [seriesSort, setSeriesSort] = useState(initialControls.seriesSort);
+  const [searchQuery, setSearchQuery] = useState(initialControls.searchQuery);
   const [selectedBook, setSelectedBook] = useState(null);
 
+  useEffect(() => {
+    if ((library.platforms || []).length && platformFilter !== "all" && !platforms[platformFilter]) {
+      setPlatformFilter("all");
+    }
+  }, [library.platforms, platformFilter, platforms]);
+
+  useEffect(() => {
+    writeStoredControls({ statusFilter, platformFilter, seriesSort, searchQuery });
+  }, [platformFilter, searchQuery, seriesSort, statusFilter]);
+
   const filteredSeries = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
     const mappedSeries = (library.series || []).map((series, index) => ({
-      ...series,
-      sortIndex: index,
-      sortStats: statsFor([series]),
-      books: (series.books || []).filter((book) => {
+      series,
+      index,
+      baseBooks: (series.books || []).filter((book) => {
         if (statusFilter !== "all" && book.status !== statusFilter) return false;
         if (platformFilter !== "all" && !(book.platforms || []).includes(platformFilter)) return false;
         return true;
       }),
-    }));
+    })).map(({ series, index, baseBooks }) => {
+      const seriesMatches = normalizedQuery && [series.title, series.author, series.summary].some((value) => (
+        (value || "").toLowerCase().includes(normalizedQuery)
+      ));
+      const books = normalizedQuery && !seriesMatches
+        ? baseBooks.filter((book) => (
+          [book.title, book.author].some((value) => (value || "").toLowerCase().includes(normalizedQuery))
+        ))
+        : baseBooks;
 
-    return mappedSeries.sort(SERIES_SORT[seriesSort]?.compare || SERIES_SORT.library.compare);
-  }, [library.series, platformFilter, seriesSort, statusFilter]);
+      return {
+        ...series,
+        sortIndex: index,
+        sortStats: statsFor([series]),
+        books,
+      };
+    });
+
+    return mappedSeries
+      .filter((series) => !normalizedQuery || series.books.length > 0)
+      .sort(SERIES_SORT[seriesSort]?.compare || SERIES_SORT.library.compare);
+  }, [library.series, platformFilter, searchQuery, seriesSort, statusFilter]);
 
   const visibleStats = statsFor(filteredSeries);
   const totalStats = statsFor(library.series || []);
@@ -231,6 +291,17 @@ function App() {
       </header>
 
       <section className="control-bar" aria-label="Library controls">
+        <label className="search-control">
+          <span>Search library</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Series, book, or author"
+            aria-label="Search series, books, and authors"
+            data-library-search
+          />
+        </label>
         <div className="segmented-control" data-status-filter>
           {Object.entries(STATUS).map(([id, status]) => (
             <button
