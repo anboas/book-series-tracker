@@ -216,6 +216,7 @@ h1 {
 }
 
 .series-row {
+  --series-state-color: var(--muted);
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -224,7 +225,29 @@ h1 {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(16, 21, 34, 0.88);
-  box-shadow: inset 4px 0 0 var(--series-accent);
+  box-shadow:
+    inset 7px 0 0 var(--series-state-color),
+    inset 10px 0 0 color-mix(in srgb, var(--series-accent), transparent 25%);
+}
+
+.series-row--read {
+  --series-state-color: var(--green);
+}
+
+.series-row--collected {
+  --series-state-color: var(--blue);
+}
+
+.series-row--gap {
+  --series-state-color: var(--amber);
+}
+
+.series-row--missing {
+  --series-state-color: var(--red);
+}
+
+.series-row--partial {
+  --series-state-color: var(--purple);
 }
 
 .series-row header {
@@ -244,13 +267,36 @@ h1 {
 
 .series-meter {
   display: grid;
-  gap: 7px;
+  gap: 5px;
   text-align: right;
 }
 
+.series-meter b,
+.series-meter em,
 .series-meter strong {
   color: var(--text);
-  font-size: 18px;
+  font-style: normal;
+}
+
+.series-meter b {
+  justify-self: end;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--series-state-color), white 12%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--series-state-color), transparent 78%);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.series-meter em {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.series-meter strong {
+  font-size: 16px;
   font-weight: 950;
 }
 
@@ -266,6 +312,7 @@ h1 {
   display: block;
   height: 100%;
   border-radius: inherit;
+  background: var(--series-state-color);
 }
 
 .book-rail {

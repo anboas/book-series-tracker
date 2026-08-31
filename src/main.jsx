@@ -162,6 +162,24 @@ function statsFor(series = []) {
   };
 }
 
+function seriesStateFor(stats) {
+  if (!stats.books) return { tone: "empty", label: "No books", detail: "No visible titles" };
+  if (stats.unowned > 0) {
+    return {
+      tone: stats.progress >= 75 ? "gap" : "missing",
+      label: `Missing ${stats.unowned}`,
+      detail: `${stats.read}/${stats.books} read`,
+    };
+  }
+  if (stats.read === stats.books) {
+    return { tone: "read", label: "Read all", detail: "Collected and read" };
+  }
+  if (stats.tracked === stats.books) {
+    return { tone: "collected", label: "Collected", detail: `${stats.read}/${stats.books} read` };
+  }
+  return { tone: "partial", label: "In progress", detail: `${stats.read}/${stats.books} read` };
+}
+
 function App() {
   const { library, source } = useLibrary();
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
@@ -205,7 +223,7 @@ function App() {
         </div>
         <div className="summary-strip" aria-label="Library summary">
           <Stat label="Books" value={totalStats.books} />
-          <Stat label="Owned" value={totalStats.owned + totalStats.read} />
+          <Stat label="Read" value={totalStats.read} />
           <Stat label="Queued" value={totalStats.queued + totalStats.reading} />
           <Stat label="Missing" value={totalStats.unowned} />
           <Stat label="Coverage" value={`${totalStats.progress}%`} />
@@ -279,18 +297,26 @@ function Stat({ label, value }) {
 
 function SeriesRow({ series, platforms, selected, onSelect }) {
   const stats = statsFor([series]);
-  const progressStyle = { width: `${stats.progress}%`, backgroundColor: series.accent || "#38bdf8" };
+  const state = seriesStateFor(stats);
+  const progressStyle = { width: `${stats.progress}%` };
 
   return (
-    <article className="series-row" style={{ "--series-accent": series.accent || "#38bdf8" }} data-series-id={series.id}>
+    <article
+      className={`series-row series-row--${state.tone}`}
+      style={{ "--series-accent": series.accent || "#38bdf8" }}
+      data-series-id={series.id}
+      data-series-state={state.tone}
+    >
       <header>
         <div>
           <span>{series.author}</span>
           <h2>{series.title}</h2>
           <p>{series.summary}</p>
         </div>
-        <div className="series-meter" aria-label={`${series.title} progress`}>
-          <strong>{stats.tracked}/{stats.books}</strong>
+        <div className="series-meter" aria-label={`${series.title} progress`} data-series-meter>
+          <b>{state.label}</b>
+          <em>{state.detail}</em>
+          <strong>{stats.read}/{stats.books}</strong>
           <span><i style={progressStyle} /></span>
         </div>
       </header>
