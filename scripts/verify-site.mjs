@@ -108,6 +108,7 @@ try {
     await firstCard.press("ArrowRight");
     assert.equal(await secondCard.evaluate((node) => document.activeElement === node), true, "ArrowRight should move book-card focus");
     assert.match(await firstCard.getAttribute("aria-label"), /He Who Fights with Monsters.*book 1.*Read.*Audible/i, "book card accessible label should include title, order, status, and platforms");
+    assert.equal(await page.locator(".platform-dots, .platform-labels").count(), 0, "book cards should use border-only platform marking");
     const download = page.waitForEvent("download");
     await page.locator("[data-export-view]").click();
     assert.equal((await download).suggestedFilename(), "book-series-current-view.csv", "export should download current view CSV");

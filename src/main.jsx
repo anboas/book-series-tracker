@@ -1119,12 +1119,6 @@ function BookCard({ book, platforms, platformFocus, active, onSelect }) {
       <CoverFrame book={book} />
       <span className="book-title">{book.title}</span>
       {metadata ? <span className="book-meta">{metadata}</span> : null}
-      <span className="platform-labels">{platformLabels.join(" · ")}</span>
-      <span className="platform-dots" aria-hidden="true">
-        {(book.platforms || []).length ? book.platforms.map((platformId) => (
-          <i key={platformId} style={{ backgroundColor: platforms[platformId]?.color || "#64748b" }} title={platforms[platformId]?.label || platformId} />
-        )) : <i className="empty" title="Not owned" />}
-      </span>
     </button>
   );
 }
