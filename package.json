@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:cloudflare": "VITE_BASE_PATH=/ npm run build",
+    "pages:dev": "npm run build:cloudflare && wrangler pages dev dist",
+    "pages:deploy": "npm run build:cloudflare && wrangler pages deploy dist --project-name book-series-tracker",
     "preview": "vite preview --host 0.0.0.0",
+    "verify:prod-smoke": "node scripts/prod-smoke.mjs",
     "verify": "npm run build && node scripts/verify-site.mjs"
   },
   "dependencies": {
@@ -18,6 +22,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "playwright-core": "^1.61.0"
+    "playwright-core": "^1.61.0",
+    "wrangler": "^4.127.1"
   }
 }

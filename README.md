@@ -10,6 +10,7 @@ If that fetch fails, it falls back to the bundled draft data in `src/fallbackLib
 
 ## Deploys
 
+- Cloudflare Pages: `https://book-series-tracker.pages.dev/`
 - GitHub Pages draft: `https://anboas.github.io/book-series-tracker/`
 - GitLab Pages target: `https://anboas.gitlab.io/book-series-tracker/`
 
