@@ -21,6 +21,14 @@ const STATUS = {
   unowned: { label: "Missing", tone: "red" },
 };
 const SERIES_SORT = {
+  attention: {
+    label: "Needs attention",
+    compare: (a, b) => (
+      b.sortStats.unowned - a.sortStats.unowned ||
+      a.sortStats.progress - b.sortStats.progress ||
+      a.sortIndex - b.sortIndex
+    ),
+  },
   library: {
     label: "Library order",
     compare: (a, b) => a.sortIndex - b.sortIndex,
@@ -78,13 +86,15 @@ function readStoredControls() {
   try {
     const parsed = JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || "{}");
     const params = new URLSearchParams(window.location.search);
+    const hasStoredSort = SERIES_SORT[parsed.seriesSort];
+    const mobileDefaultSort = window.matchMedia?.("(max-width: 640px)")?.matches ? "attention" : CONTROL_DEFAULTS.seriesSort;
     const controls = {
       statusFilter: STATUS[parsed.statusFilter] ? parsed.statusFilter : CONTROL_DEFAULTS.statusFilter,
       platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : CONTROL_DEFAULTS.platformFilter,
       platformFocus: typeof parsed.platformFocus === "string" ? parsed.platformFocus : CONTROL_DEFAULTS.platformFocus,
-      seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : CONTROL_DEFAULTS.seriesSort,
+      seriesSort: hasStoredSort ? parsed.seriesSort : mobileDefaultSort,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : CONTROL_DEFAULTS.searchQuery,
-      seriesView: ["missing", "queue", "authors"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
+      seriesView: ["missing", "queue", "authors", "next"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
       hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : CONTROL_DEFAULTS.hideCompletedSeries,
       density: DENSITY_ORDER.includes(parsed.density) ? parsed.density : CONTROL_DEFAULTS.density,
     };
@@ -96,7 +106,7 @@ function readStoredControls() {
     if (params.has("platform")) controls.platformFilter = params.get("platform") || "all";
     if (params.has("focus")) controls.platformFocus = params.get("focus") || "all";
     if (params.has("q")) controls.searchQuery = params.get("q") || "";
-    if (["all", "missing", "queue", "authors"].includes(view)) controls.seriesView = view;
+    if (["all", "missing", "queue", "authors", "next"].includes(view)) controls.seriesView = view;
     if (params.has("hideComplete")) controls.hideCompletedSeries = params.get("hideComplete") === "1";
     if (DENSITY_ORDER.includes(params.get("density"))) controls.density = params.get("density");
     return controls;
@@ -534,6 +544,10 @@ function bookHashFor(book) {
   return book?.seriesId ? `#book=${encodeURIComponent(book.seriesId)}:${encodeURIComponent(String(book.order))}` : "";
 }
 
+function statusClassFor(statusId) {
+  return STATUS[statusId]?.tone || "neutral";
+}
+
 function findBookFromHash(library, hash) {
   const match = /^#book=([^:]+):(.+)$/.exec(hash || "");
   if (!match) return null;
@@ -570,6 +584,7 @@ function App() {
   const [collapsedSeries, setCollapsedSeries] = useState(() => new Set());
   const [actionMessage, setActionMessage] = useState("");
   const restoredHash = useRef(false);
+  const initializedMobileCollapse = useRef(false);
 
   useEffect(() => {
     if ((library.platforms || []).length && !["all", "audio"].includes(platformFilter) && !platforms[platformFilter]) {
@@ -606,13 +621,14 @@ function App() {
           [book.title, book.author].some((value) => (value || "").toLowerCase().includes(normalizedQuery))
         ))
         : baseBooks;
+      const nextUpBook = seriesView === "next" ? nextMissingBookFor({ ...series, allBooks: books }) : null;
 
       return {
         ...series,
         allBooks: series.books || [],
         sortIndex: index,
         sortStats: statsFor([series]),
-        books,
+        books: seriesView === "next" ? (nextUpBook ? [nextUpBook] : []) : books,
       };
     });
 
@@ -621,6 +637,7 @@ function App() {
         const fullState = seriesStateFor(series.sortStats).tone;
         if (seriesView === "missing" && series.sortStats.unowned === 0) return false;
         if (seriesView === "queue" && series.books.length === 0) return false;
+        if (seriesView === "next" && series.books.length === 0) return false;
         if (hideCompletedSeries && fullState === "read") return false;
         if (normalizedQuery && series.books.length === 0) return false;
         return true;
@@ -688,6 +705,17 @@ function App() {
     restoredHash.current = true;
     setSelectedBook(book);
     requestAnimationFrame(() => jumpToSeries(book.seriesId));
+  }, [library]);
+
+  useEffect(() => {
+    if (initializedMobileCollapse.current || !(library.series || []).length) return;
+    if (!window.matchMedia?.("(max-width: 640px)")?.matches) return;
+    initializedMobileCollapse.current = true;
+    setCollapsedSeries(new Set(
+      (library.series || [])
+        .filter((series) => seriesStateFor(statsFor([series])).tone === "read")
+        .map((series) => series.id),
+    ));
   }, [library]);
 
   return (
@@ -815,6 +843,17 @@ function App() {
             data-queue-view-toggle
           >
             Queue
+          </button>
+          <button
+            type="button"
+            className={seriesView === "next" ? "active" : ""}
+            onClick={() => {
+              setStatusFilter("all");
+              setSeriesView(seriesView === "next" ? "all" : "next");
+            }}
+            data-next-up-view-toggle
+          >
+            Next up
           </button>
           <button
             type="button"
@@ -959,7 +998,11 @@ function App() {
             />
           )) : (
             <div className="empty-row" data-empty-view>
-              {seriesView === "queue" ? "No queued or currently reading books in this view." : "No visible series match this view."}
+              {seriesView === "queue"
+                ? "No queued or currently reading books in this view."
+                : seriesView === "next"
+                  ? "No next unread books match this view."
+                  : "No visible series match this view."}
             </div>
           )}
         </section>
@@ -1006,6 +1049,7 @@ function SeriesRow({ series, platforms, selected, collapsed, platformFocus, onTo
   const focusCount = platformFocusCountFor(series, platformFocus);
   const focusLabel = platformFocusLabel(platformFocus, platforms);
   const progressStyle = { width: `${stats.progress}%` };
+  const timelineBooks = series.allBooks || series.books || [];
 
   return (
     <article
@@ -1019,6 +1063,11 @@ function SeriesRow({ series, platforms, selected, collapsed, platformFocus, onTo
         <div>
           <span>{series.author}</span>
           <h2>{series.title}</h2>
+          <div className="series-badges" aria-label={`${series.title} reading summary`} data-series-badges>
+            <b className="series-badge series-badge--green">{stats.read} read</b>
+            {stats.unowned ? <b className="series-badge series-badge--red">{stats.unowned} missing</b> : <b className="series-badge series-badge--green">Read all</b>}
+            {stats.books ? <b className="series-badge">{stats.books} total</b> : null}
+          </div>
           <p>{series.summary}</p>
           {series.priority || series.note ? (
             <p className="series-note" data-series-note>
@@ -1056,6 +1105,35 @@ function SeriesRow({ series, platforms, selected, collapsed, platformFocus, onTo
           </button>
         </div>
       </header>
+      {timelineBooks.length ? (
+        <div className="series-timeline" aria-label={`${series.title} read and missing timeline`} data-series-timeline>
+          {timelineBooks.map((book) => {
+            const status = STATUS[book.status] || STATUS.unowned;
+            return (
+              <button
+                key={`${series.id}-timeline-${book.order}`}
+                type="button"
+                className={`timeline-chip timeline-chip--${statusClassFor(book.status)}`}
+                title={`#${book.order} ${book.title}: ${status.label}`}
+                aria-label={`Book ${book.order}, ${book.title}, ${status.label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect({
+                    ...book,
+                    seriesId: series.id,
+                    seriesTitle: series.title,
+                    seriesAccent: series.accent,
+                    seriesNote: series.note,
+                    seriesPriority: series.priority,
+                  });
+                }}
+              >
+                {book.order}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="book-rail" data-book-rail hidden={collapsed}>
         {series.books.length ? series.books.map((book) => (
           <BookCard

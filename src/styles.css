@@ -624,6 +624,35 @@ h1 {
   line-height: 1.05;
 }
 
+.series-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.series-badge {
+  padding: 4px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: rgba(8, 10, 18, 0.42);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 950;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.series-badge--green {
+  border-color: color-mix(in srgb, var(--green), transparent 35%);
+  color: var(--green);
+}
+
+.series-badge--red {
+  border-color: color-mix(in srgb, var(--red), transparent 35%);
+  color: var(--red);
+}
+
 .series-note,
 .next-missing {
   display: inline-grid;
@@ -731,6 +760,50 @@ h1 {
 
 .collapse-button:hover {
   border-color: var(--blue);
+}
+
+.series-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.timeline-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.timeline-chip--green {
+  border-color: color-mix(in srgb, var(--green), transparent 35%);
+  background: color-mix(in srgb, var(--green), transparent 84%);
+}
+
+.timeline-chip--blue {
+  border-color: color-mix(in srgb, var(--blue), transparent 35%);
+  background: color-mix(in srgb, var(--blue), transparent 84%);
+}
+
+.timeline-chip--amber {
+  border-color: color-mix(in srgb, var(--amber), transparent 35%);
+  background: color-mix(in srgb, var(--amber), transparent 84%);
+}
+
+.timeline-chip--red {
+  border-color: color-mix(in srgb, var(--red), transparent 24%);
+  background: color-mix(in srgb, var(--red), transparent 78%);
+  color: #ffe4e6;
 }
 
 .book-rail {
@@ -1139,17 +1212,22 @@ h1 {
     padding: 8px;
   }
 
+  .app-header {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
   h1 {
-    font-size: 34px;
+    font-size: 30px;
     line-height: 0.98;
   }
 
   .brand-block {
-    gap: 6px;
+    gap: 4px;
   }
 
   .brand-block p {
-    font-size: 12px;
+    display: none;
   }
 
   .summary-strip {
@@ -1209,6 +1287,9 @@ h1 {
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 4;
   }
 
   .search-control,
@@ -1236,7 +1317,7 @@ h1 {
 
   .series-row {
     gap: 9px;
-    padding: 10px;
+    padding: 9px;
   }
 
   .series-row header {
@@ -1245,11 +1326,22 @@ h1 {
   }
 
   .series-row h2 {
-    font-size: 20px;
+    margin-bottom: 6px;
+    font-size: 19px;
   }
 
   .series-row header p {
     font-size: 12px;
+  }
+
+  .series-badges {
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+
+  .series-badge {
+    padding: 4px 6px;
+    font-size: 9px;
   }
 
   .next-missing {
@@ -1271,14 +1363,43 @@ h1 {
     grid-column: 1 / -1;
   }
 
+  .series-meter em {
+    display: none;
+  }
+
+  .series-timeline {
+    gap: 4px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 1px;
+    scrollbar-width: none;
+  }
+
+  .series-timeline::-webkit-scrollbar {
+    display: none;
+  }
+
+  .timeline-chip {
+    flex: 0 0 auto;
+    min-width: 26px;
+    height: 23px;
+    padding: 0 6px;
+    font-size: 9px;
+  }
+
   .book-rail {
     grid-auto-columns: minmax(120px, 138px);
-    gap: 9px;
+    gap: 8px;
   }
 
   .book-card {
-    gap: 7px;
-    padding: 7px;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .library-app[data-density="compact"] .book-card,
+  .library-app[data-density="list"] .book-card {
+    min-height: 52px;
   }
 
   .status-pill {

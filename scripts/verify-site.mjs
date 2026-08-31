@@ -59,6 +59,11 @@ try {
     assert.match(text, /The Wheel of Time/);
     assert.match(text, /Arcane Ascension/);
     assert.doesNotMatch(text, /The Land/);
+    assert.equal(
+      await page.locator("[data-series-sort]").inputValue(),
+      viewport.width <= 640 ? "attention" : "library",
+      "initial sort should use needs-attention on mobile and library order elsewhere",
+    );
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
     const stateSummary = await page.locator("[data-series-state-summary]").innerText();
@@ -72,6 +77,11 @@ try {
     assert.match(platformSummary, /Missing\s+32/i, "platform summary should count missing titles");
     assert.match(await page.locator("[data-next-unread-strip]").innerText(), /32 missing titles/i, "next unread strip should summarize unread gaps");
     assert.match(await page.locator("[data-next-unread-strip]").innerText(), /He Who Fights with Monsters[\s\S]*#6 He Who Fights with Monsters 6/i, "next unread strip should surface priority gaps");
+    const dccBadges = await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-badges]').innerText();
+    assert.match(dccBadges, /1 read/i, "series header should show read count badge");
+    assert.match(dccBadges, /6 missing/i, "series header should show missing count badge");
+    assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline] button').count(), 7, "series timeline should show one chip per DCC book");
+    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline]').innerText(), /1[\s\S]*7/, "series timeline should expose ordered book chips");
     await page.locator('[data-platform-focus="audible"]').click();
     await page.waitForFunction(() => document.querySelector('[data-book-card][data-platform-match="false"]'));
     assert.match(page.url(), /focus=audible/, "platform focus should be shareable in the URL");
@@ -94,6 +104,11 @@ try {
     await page.locator("[data-status-filter] button", { hasText: "All" }).click();
     await page.locator("[data-series-jump]").selectOption("dungeon-crawler-carl");
     await page.waitForFunction(() => Math.abs(document.querySelector('[data-series-id="dungeon-crawler-carl"]').getBoundingClientRect().top) < 80);
+    await page.locator("[data-next-up-view-toggle]").click();
+    assert.match(page.url(), /view=next/, "next-up view should be shareable in the URL");
+    assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').count(), 1, "next-up view should show only the next missing DCC book");
+    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').innerText(), /Carl's Doomsday Scenario/i, "next-up view should show the next unread DCC title");
+    await page.locator("[data-next-up-view-toggle]").click();
     await page.locator("[data-queue-view-toggle]").click();
     assert.equal(await page.locator("[data-series-stack] > article").count(), 0, "queue view should hide rows when no books are queued");
     assert.match(await page.locator("[data-empty-view]").innerText(), /No queued or currently reading books/i);
@@ -107,7 +122,11 @@ try {
     await firstCard.focus();
     await firstCard.press("ArrowRight");
     assert.equal(await secondCard.evaluate((node) => document.activeElement === node), true, "ArrowRight should move book-card focus");
-    assert.match(await firstCard.getAttribute("aria-label"), /He Who Fights with Monsters.*book 1.*Read.*Audible/i, "book card accessible label should include title, order, status, and platforms");
+    assert.match(
+      await page.locator('[data-series-id="he-who-fights-with-monsters"] [data-book-card]').first().getAttribute("aria-label"),
+      /He Who Fights with Monsters.*book 1.*Read.*Audible/i,
+      "book card accessible label should include title, order, status, and platforms",
+    );
     assert.equal(await page.locator(".platform-dots, .platform-labels").count(), 0, "book cards should use border-only platform marking");
     const download = page.waitForEvent("download");
     await page.locator("[data-export-view]").click();
@@ -145,7 +164,7 @@ try {
     assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-meter]').innerText(), /MISSING 6/);
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').getAttribute("data-series-state"), "read", "fully tracked Audible series should show read-all state");
     assert.match(await page.locator('[data-series-id="the-stormlight-archive"] [data-series-meter]').innerText(), /READ ALL/);
-    assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "he-who-fights-with-monsters", "default sort should preserve library order");
+    assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "he-who-fights-with-monsters", "library sort should preserve library order");
     await page.locator("[data-series-sort]").selectOption("coverage");
     assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "dungeon-crawler-carl", "least-covered sort should surface Dungeon Crawler Carl first");
     await page.locator("[data-series-sort]").selectOption("library");
