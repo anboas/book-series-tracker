@@ -8,3 +8,13 @@ The app fetches public data from:
 
 If that fetch fails, it falls back to the bundled draft data in `src/fallbackLibrary.js`.
 
+## Deploys
+
+- GitHub Pages draft: `https://anboas.github.io/book-series-tracker/`
+- GitLab Pages target: `https://anboas.gitlab.io/book-series-tracker/`
+
+GitLab is ready through `.gitlab-ci.yml`, but this shell does not currently have a noninteractive GitLab credential. Once authenticated, run:
+
+```bash
+git push gitlab-pages main
+```
