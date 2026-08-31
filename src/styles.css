@@ -45,10 +45,9 @@ button {
 }
 
 .app-header,
-.series-state-strip,
-.platform-strip,
-.next-unread-strip,
+.attention-banner,
 .primary-lens-bar,
+.filter-drawer,
 .control-bar,
 .source-row,
 .status-distribution,
@@ -173,7 +172,7 @@ button {
   color: var(--muted);
 }
 
-.next-unread-strip {
+.attention-banner {
   display: grid;
   grid-template-columns: minmax(160px, 0.3fr) repeat(5, minmax(170px, 1fr));
   gap: 8px;
@@ -182,12 +181,12 @@ button {
   scrollbar-width: none;
 }
 
-.next-unread-strip::-webkit-scrollbar {
+.attention-banner::-webkit-scrollbar {
   display: none;
 }
 
-.next-unread-strip > div,
-.next-unread-strip button {
+.attention-banner > div,
+.attention-banner button {
   min-width: 0;
   min-height: 58px;
   padding: 9px 10px;
@@ -198,34 +197,45 @@ button {
   text-align: left;
 }
 
-.next-unread-strip > div {
+.attention-banner > div {
   display: grid;
   gap: 4px;
   align-content: center;
 }
 
-.next-unread-strip strong,
-.next-unread-strip b,
-.next-unread-strip span {
+.attention-banner strong,
+.attention-banner b,
+.attention-banner span,
+.attention-banner em {
   min-width: 0;
 }
 
-.next-unread-strip strong {
+.attention-banner strong {
   font-size: 16px;
   font-weight: 950;
 }
 
-.next-unread-strip button {
+.attention-banner em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.attention-banner button {
   display: grid;
   gap: 5px;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
-.next-unread-strip button:hover {
+.attention-banner button:hover,
+.attention-banner button:focus-visible {
   border-color: var(--red);
   background: #21101a;
+  transform: translateY(-1px);
 }
 
-.next-unread-strip b {
+.attention-banner b {
   overflow: hidden;
   color: var(--red);
   font-size: 11px;
@@ -235,7 +245,7 @@ button {
   white-space: nowrap;
 }
 
-.next-unread-strip button span {
+.attention-banner button span {
   display: -webkit-box;
   overflow: hidden;
   color: var(--text);
@@ -365,11 +375,45 @@ h1 {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 10px;
   align-items: center;
-  margin-bottom: 10px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(12, 17, 29, 0.9);
+}
+
+.filter-drawer {
+  margin-bottom: 10px;
+}
+
+.filter-drawer > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(16, 21, 34, 0.88);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 950;
+  list-style: none;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.filter-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-drawer[open] > summary,
+.filter-drawer > summary:hover {
+  border-color: var(--blue);
+  background: #102338;
+}
+
+.filter-drawer[open] .control-bar {
+  margin-top: 8px;
 }
 
 .segmented-control {
@@ -473,7 +517,12 @@ h1 {
 }
 
 .segmented-control button.active,
-.control-bar a:hover {
+.control-bar a:hover,
+.segmented-control button:hover,
+.series-tools button:hover,
+.check-control:hover,
+.control-bar select:hover,
+.tools-menu summary:hover {
   border-color: var(--blue);
   background: #102338;
 }
@@ -624,6 +673,27 @@ h1 {
   text-transform: uppercase;
 }
 
+.analytics-view {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(16, 21, 34, 0.88);
+}
+
+.analytics-view > header {
+  display: grid;
+  gap: 4px;
+}
+
+.analytics-view > header h2 {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 950;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -659,16 +729,23 @@ h1 {
 .series-row {
   --series-state-color: var(--muted);
   display: grid;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
-  padding: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(16, 21, 34, 0.88);
   box-shadow:
     inset 7px 0 0 var(--series-state-color),
     inset 10px 0 0 color-mix(in srgb, var(--series-accent), transparent 25%);
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.series-row:hover,
+.series-row:focus-within {
+  border-color: color-mix(in srgb, var(--series-state-color), white 16%);
+  background: rgba(21, 29, 46, 0.92);
 }
 
 .series-row--read {
@@ -694,12 +771,12 @@ h1 {
 .series-row header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
-  gap: 12px;
+  gap: 10px;
   align-items: start;
 }
 
 .series-row h2 {
-  margin: 2px 0 5px;
+  margin: 2px 0 4px;
   color: var(--text);
   font-size: 24px;
   font-weight: 950;
@@ -709,15 +786,11 @@ h1 {
 .series-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 7px;
+  gap: 5px;
+  margin-bottom: 6px;
 }
 
 .series-badge {
-  padding: 4px 7px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: rgba(8, 10, 18, 0.42);
   color: var(--muted);
   font-size: 10px;
   font-weight: 950;
@@ -726,12 +799,10 @@ h1 {
 }
 
 .series-badge--green {
-  border-color: color-mix(in srgb, var(--green), transparent 35%);
   color: var(--green);
 }
 
 .series-badge--red {
-  border-color: color-mix(in srgb, var(--red), transparent 35%);
   color: var(--red);
 }
 
@@ -743,8 +814,8 @@ h1 {
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  margin-top: 9px;
-  padding: 7px 9px;
+  margin-top: 7px;
+  padding: 6px 8px;
   border: 1px solid color-mix(in srgb, var(--series-state-color), transparent 35%);
   border-radius: 6px;
   background: color-mix(in srgb, var(--series-state-color), transparent 85%);
@@ -845,10 +916,17 @@ h1 {
 }
 
 .series-timeline {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   gap: 5px;
   min-width: 0;
+}
+
+.library-app[data-density="compact"] .series-timeline,
+.library-app[data-density="list"] .series-timeline,
+.series-row:hover .series-timeline,
+.series-row:focus-within .series-timeline {
+  display: flex;
 }
 
 .timeline-chip {
@@ -922,6 +1000,7 @@ h1 {
   color: var(--text);
   text-align: left;
   scroll-snap-align: start;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
 .book-card.active {
@@ -951,7 +1030,8 @@ h1 {
 
 .book-card:hover {
   transform: translateY(-2px);
-  transition: transform 160ms ease;
+  background: color-mix(in srgb, var(--platform-color), var(--panel-soft) 88%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
 .cover-frame,
@@ -1365,17 +1445,17 @@ h1 {
     flex: 0 0 auto;
   }
 
-  .next-unread-strip {
+  .attention-banner {
     grid-template-columns: minmax(128px, 0.72fr) repeat(5, minmax(156px, 1fr));
   }
 
-  .next-unread-strip > div,
-  .next-unread-strip button {
+  .attention-banner > div,
+  .attention-banner button {
     min-height: 52px;
     padding: 8px;
   }
 
-  .next-unread-strip strong {
+  .attention-banner strong {
     font-size: 14px;
   }
 
@@ -1454,7 +1534,6 @@ h1 {
   }
 
   .series-badge {
-    padding: 4px 6px;
     font-size: 9px;
   }
 

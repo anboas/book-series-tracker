@@ -32,6 +32,12 @@ const browser = await chromium.launch({
   args: ["--no-sandbox", "--disable-dev-shm-usage"],
 });
 
+async function openFilters(page) {
+  if (await page.locator("[data-filter-drawer]").getAttribute("open") === null) {
+    await page.locator("[data-filter-drawer] > summary").click();
+  }
+}
+
 try {
   for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     const page = await browser.newPage({ viewport });
@@ -42,12 +48,11 @@ try {
     await page.evaluate(() => localStorage.removeItem("book-series-tracker:controls"));
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-book-series-app]");
-    await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
+    await page.waitForFunction(() => document.querySelector("[data-attention-banner]")?.innerText.includes("32 missing"));
     const text = await page.locator("[data-book-series-app]").innerText();
     assert.match(text, /Book Series Tracker/);
     assert.equal(await page.locator('link[rel="manifest"]').getAttribute("href"), "/manifest.webmanifest", "PWA manifest should be linked");
-    assert.match(text, /SOURCE: GITHUB/);
-    assert.match(text, /169\s+READ/);
+    assert.match(text, /169\/201 read/i);
     assert.doesNotMatch(text, /169\s+OWNED/);
     assert.match(text, /He Who Fights with Monsters/);
     assert.match(text, /Dungeon Crawler Carl/);
@@ -66,6 +71,8 @@ try {
     );
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
+    await openFilters(page);
+    await page.locator("[data-analytics-view-toggle]").click();
     const stateSummary = await page.locator("[data-series-state-summary]").innerText();
     assert.match(stateSummary, /39\s+Read all/i, "state summary should count fully read series");
     assert.match(stateSummary, /3\s+Gap/i, "state summary should count mostly covered gap series");
@@ -75,18 +82,22 @@ try {
     assert.match(platformSummary, /Audible\s+169/i, "platform summary should count Audible titles");
     assert.match(platformSummary, /AudioBookshelf\s+0/i, "platform summary should expose AudioBookshelf before imports exist");
     assert.match(platformSummary, /Missing\s+32/i, "platform summary should count missing titles");
-    assert.match(await page.locator("[data-next-unread-strip]").innerText(), /32 missing titles/i, "next unread strip should summarize unread gaps");
-    assert.match(await page.locator("[data-next-unread-strip]").innerText(), /He Who Fights with Monsters[\s\S]*#6 He Who Fights with Monsters 6/i, "next unread strip should surface priority gaps");
+    assert.match(await page.locator("[data-status-distribution]").innerText(), /Read 169 titles[\s\S]*Missing 32 titles/i, "analytics view should hold status distribution");
+    assert.match(await page.locator("[data-import-diagnostics]").innerText(), /47 series[\s\S]*201 books/i, "analytics view should hold import diagnostics");
+    assert.match(await page.locator("[data-source-sha]").innerText(), /Data /i, "analytics view should hold source metadata");
+    await page.locator('[data-platform-focus="audible"]').click();
+    assert.match(page.url(), /focus=audible/, "platform focus should be shareable in the URL");
+    assert.match(await page.locator("[data-platform-focus-label]").innerText(), /Focus: Audible/i, "analytics source row should show active platform focus");
+    await page.locator("[data-analytics-view-toggle]").click();
+    await page.waitForFunction(() => document.querySelector('[data-book-card][data-platform-match="false"]'));
+    assert.match(await page.locator("[data-next-unread-strip]").innerText(), /32 missing/i, "attention banner should summarize unread gaps");
+    assert.match(await page.locator("[data-next-unread-strip]").innerText(), /He Who Fights with Monsters[\s\S]*#6 He Who Fights with Monsters 6/i, "attention banner should surface priority gaps");
     assert.match(await page.locator("[data-primary-lens-bar]").innerText(), /All[\s\S]*201[\s\S]*Owned audio[\s\S]*169[\s\S]*Unread[\s\S]*32[\s\S]*Next up[\s\S]*5/i, "primary lens bar should summarize core reading modes");
     const dccBadges = await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-badges]').innerText();
     assert.match(dccBadges, /1 read/i, "series header should show read count badge");
     assert.match(dccBadges, /6 missing/i, "series header should show missing count badge");
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline] button').count(), 7, "series timeline should show one chip per DCC book");
     assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline]').innerText(), /1[\s\S]*7/, "series timeline should expose ordered book chips");
-    await page.locator('[data-platform-focus="audible"]').click();
-    await page.waitForFunction(() => document.querySelector('[data-book-card][data-platform-match="false"]'));
-    assert.match(page.url(), /focus=audible/, "platform focus should be shareable in the URL");
-    assert.match(await page.locator("[data-platform-focus-label]").innerText(), /Focus: Audible/i, "source row should show active platform focus");
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-platform-focus-count"), "1", "platform focus count should use full series data");
     assert.ok(await page.locator('[data-book-card][data-platform-match="true"]').count() >= 160, "Audible focus should mark matching books");
     assert.ok(await page.locator('[data-book-card][data-platform-match="false"]').count() >= 20, "Audible focus should mute missing gaps without hiding them");
@@ -95,7 +106,7 @@ try {
       [...document.querySelectorAll('[data-series-id="dungeon-crawler-carl"] [data-book-card][data-platform-match="true"]')]
         .some((card) => card.textContent?.includes("Carl's Doomsday Scenario"))
     ));
-    assert.match(await page.locator("[data-platform-focus-label]").innerText(), /Focus: Missing/i, "missing focus should be selectable");
+    assert.equal(await page.locator("[data-platform-focus-select]").inputValue(), "missing", "missing focus should be selectable");
     assert.ok(await page.locator('[data-book-card][data-platform-match="true"]').count() >= 20, "missing focus should highlight gap cards");
     await page.locator("[data-platform-focus-select]").selectOption("all");
     await page.locator("[data-platform-filter]").selectOption("audible");
@@ -163,7 +174,8 @@ try {
     await page.locator("[data-missing-series-toggle]").click();
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-book-series-app]");
-    await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
+    await page.waitForFunction(() => document.querySelector("[data-attention-banner]")?.innerText.includes("32 missing"));
+    await openFilters(page);
     assert.equal(await page.locator("[data-library-search]").inputValue(), "doomsday", "search should persist across reloads");
     assert.equal(await page.locator("[data-series-sort]").inputValue(), "coverage", "series sort should persist across reloads");
     assert.match(await page.locator("[data-status-filter] button.active").innerText(), /Missing/, "status filter should persist across reloads");
@@ -263,13 +275,15 @@ try {
     }));
   });
   await offlinePage.reload({ waitUntil: "domcontentloaded" });
-  await offlinePage.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("CACHED GITHUB"));
+  await offlinePage.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("Cache Test Series"));
   const offlineText = await offlinePage.locator("[data-book-series-app]").innerText();
-  assert.match(offlineText, /Source: Cached GitHub 2026-08-31/i, "offline load should use cached GitHub data");
   assert.match(offlineText, /Cache Test Series/);
   assert.match(offlineText, /Buy next.*Keep this one visible/i, "series notes and priority should render when present");
   assert.match(offlineText, /2026/, "publication metadata should render when present");
-  assert.match(offlineText, /1\s+visible/i);
+  await openFilters(offlinePage);
+  await offlinePage.locator("[data-analytics-view-toggle]").click();
+  assert.match(await offlinePage.locator("[data-analytics-view]").innerText(), /Source: Cached GitHub 2026-08-31[\s\S]*1 visible/i, "offline load should use cached GitHub data and show source details in analytics");
+  await offlinePage.locator("[data-analytics-view-toggle]").click();
   await offlinePage.locator("[data-book-card]").click();
   assert.equal(await offlinePage.locator("[data-source-link]").getAttribute("href"), "https://github.com/anboas/reading-list-data/blob/main/books.json", "book detail should link to source data");
   await offlinePage.route("https://covers.openlibrary.org/**", (route) => route.abort());
@@ -298,7 +312,7 @@ try {
     }));
   });
   await offlinePage.reload({ waitUntil: "domcontentloaded" });
-  await offlinePage.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("CACHED GITHUB"));
+  await offlinePage.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("Cover Test Series"));
   await offlinePage.waitForSelector('[data-cover-state="missing"]');
   assert.match(await offlinePage.locator('[data-cover-state="missing"]').first().innerText(), /No cover/i, "missing covers should show a quiet diagnostic");
   await offlinePage.close();

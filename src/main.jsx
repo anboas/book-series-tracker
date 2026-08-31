@@ -81,6 +81,8 @@ const CONTROL_DEFAULTS = {
   density: "cover",
 };
 const DENSITY_ORDER = ["cover", "compact", "list"];
+const ANALYTICS_VIEW = "analytics";
+const SERIES_VIEWS = ["all", "missing", "queue", "authors", "next", ANALYTICS_VIEW];
 
 function readStoredControls() {
   try {
@@ -94,7 +96,7 @@ function readStoredControls() {
       platformFocus: typeof parsed.platformFocus === "string" ? parsed.platformFocus : CONTROL_DEFAULTS.platformFocus,
       seriesSort: hasStoredSort ? parsed.seriesSort : mobileDefaultSort,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : CONTROL_DEFAULTS.searchQuery,
-      seriesView: ["missing", "queue", "authors", "next"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
+      seriesView: SERIES_VIEWS.includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
       hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : CONTROL_DEFAULTS.hideCompletedSeries,
       density: DENSITY_ORDER.includes(parsed.density) ? parsed.density : CONTROL_DEFAULTS.density,
     };
@@ -106,7 +108,7 @@ function readStoredControls() {
     if (params.has("platform")) controls.platformFilter = params.get("platform") || "all";
     if (params.has("focus")) controls.platformFocus = params.get("focus") || "all";
     if (params.has("q")) controls.searchQuery = params.get("q") || "";
-    if (["all", "missing", "queue", "authors", "next"].includes(view)) controls.seriesView = view;
+    if (SERIES_VIEWS.includes(view)) controls.seriesView = view;
     if (params.has("hideComplete")) controls.hideCompletedSeries = params.get("hideComplete") === "1";
     if (DENSITY_ORDER.includes(params.get("density"))) controls.density = params.get("density");
     return controls;
@@ -726,6 +728,7 @@ function App() {
     }
   };
   const activeLens = (() => {
+    if (seriesView === ANALYTICS_VIEW) return "";
     if (seriesView === "next") return "next";
     if (statusFilter === "unowned" && seriesView === "missing") return "unread";
     if (platformFilter === "audio" && platformFocus === "audio") return "audio";
@@ -761,69 +764,13 @@ function App() {
           <h1>Book Series Tracker</h1>
           <p>Series-first reading map with cover art, ownership platform, read state, and obvious unread gaps.</p>
         </div>
-        <div className="summary-strip" aria-label="Library summary">
-          <Stat label="Books" value={totalStats.books} />
-          <Stat label="Read" value={totalStats.read} />
-          <Stat label="Queued" value={totalStats.queued + totalStats.reading} />
-          <Stat label="Missing" value={totalStats.unowned} />
-          <Stat label="Coverage" value={`${totalStats.progress}%`} />
-        </div>
       </header>
 
-      <section className="series-state-strip" aria-label="Series state summary" data-series-state-summary>
-        <StateStat label="Read all" value={stateCounts.read || 0} tone="read" />
-        <StateStat label="Gap" value={stateCounts.gap || 0} tone="gap" />
-        <StateStat label="Missing" value={stateCounts.missing || 0} tone="missing" />
-        <StateStat label="Partial" value={stateCounts.partial || 0} tone="partial" />
-        <StateStat label="Collected" value={stateCounts.collected || 0} tone="collected" />
-      </section>
-
-      <section className="platform-strip" aria-label="Platform summary" data-platform-summary>
-        <button
-          type="button"
-          className={platformFocus === "audio" ? "active" : ""}
-          style={{ "--platform-color": "#14b8a6" }}
-          onClick={() => setPlatformFocus(platformFocus === "audio" ? "all" : "audio")}
-          aria-pressed={platformFocus === "audio"}
-          data-platform-focus="audio"
-        >
-          <span aria-hidden="true" />
-          <strong>Owned audio</strong>
-          <em>{platformStats.audio}</em>
-        </button>
-        {platformStats.platforms.map((platform) => (
-          <button
-            key={platform.id}
-            type="button"
-            className={platformFocus === platform.id ? "active" : ""}
-            style={{ "--platform-color": platform.color || "#64748b" }}
-            onClick={() => setPlatformFocus(platformFocus === platform.id ? "all" : platform.id)}
-            aria-pressed={platformFocus === platform.id}
-            data-platform-focus={platform.id}
-          >
-            <span aria-hidden="true" />
-            <strong>{platform.label}</strong>
-            <em>{platform.count}</em>
-          </button>
-        ))}
-        <button
-          type="button"
-          className={platformFocus === "missing" ? "active" : ""}
-          style={{ "--platform-color": "var(--red)" }}
-          onClick={() => setPlatformFocus(platformFocus === "missing" ? "all" : "missing")}
-          aria-pressed={platformFocus === "missing"}
-          data-platform-focus="missing"
-        >
-          <span aria-hidden="true" />
-          <strong>Missing</strong>
-          <em>{platformStats.missing}</em>
-        </button>
-      </section>
-
-      <section className="next-unread-strip" aria-label="Next unread books" data-next-unread-strip>
+      <section className="attention-banner" aria-label="Reading attention summary" data-attention-banner data-next-unread-strip>
         <div>
           <span className="eyebrow">Next unread</span>
-          <strong>{totalStats.unowned} missing titles</strong>
+          <strong>{totalStats.unowned} missing</strong>
+          <em>{totalStats.read}/{totalStats.books} read · {totalStats.progress}% covered</em>
         </div>
         {nextUnreadBooks.map((book) => (
           <button
@@ -857,166 +804,150 @@ function App() {
         </button>
       </section>
 
-      <section className="control-bar" aria-label="Library controls">
-        <label className="search-control">
-          <span>Search library</span>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Series, book, or author"
-            aria-label="Search series, books, and authors"
-            data-library-search
-          />
-        </label>
-        <div className="segmented-control" data-status-filter>
-          {Object.entries(STATUS).map(([id, status]) => (
-            <button
-              key={id}
-              type="button"
-              className={statusFilter === id ? "active" : ""}
-              onClick={() => setStatusFilter(id)}
-            >
-              {status.label}
-            </button>
-          ))}
-        </div>
-        <div className="series-tools" aria-label="Series view controls">
-          <button
-            type="button"
-            className={seriesView === "missing" ? "active" : ""}
-            onClick={() => setSeriesView(seriesView === "missing" ? "all" : "missing")}
-            data-missing-series-toggle
-          >
-            Gaps only
-          </button>
-          <button
-            type="button"
-            className={seriesView === "queue" ? "active" : ""}
-            onClick={() => setSeriesView(seriesView === "queue" ? "all" : "queue")}
-            data-queue-view-toggle
-          >
-            Queue
-          </button>
-          <button
-            type="button"
-            className={seriesView === "next" ? "active" : ""}
-            onClick={() => {
-              setStatusFilter("all");
-              setSeriesView(seriesView === "next" ? "all" : "next");
-            }}
-            data-next-up-view-toggle
-          >
-            Next up
-          </button>
-          <button
-            type="button"
-            className={seriesView === "authors" ? "active" : ""}
-            onClick={() => setSeriesView(seriesView === "authors" ? "all" : "authors")}
-            data-author-view-toggle
-          >
-            Authors
-          </button>
-          <label className="check-control">
+      <details className="filter-drawer" data-filter-drawer>
+        <summary data-platform-focus-label>Filters · {visibleStats.books} visible · Focus: {activePlatformLabel}</summary>
+        <section className="control-bar" aria-label="Library controls">
+          <label className="search-control">
+            <span>Search library</span>
             <input
-              type="checkbox"
-              checked={hideCompletedSeries}
-              onChange={(event) => setHideCompletedSeries(event.target.checked)}
-              data-hide-completed-toggle
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Series, book, or author"
+              aria-label="Search series, books, and authors"
+              data-library-search
             />
-            <span>Hide complete</span>
           </label>
-          <button
-            type="button"
-            className={density === "compact" ? "active" : ""}
-            onClick={() => setDensity(density === "compact" ? "cover" : "compact")}
-            data-density-toggle
-          >
-            Compact
-          </button>
-          <button
-            type="button"
-            className={density === "list" ? "active" : ""}
-            onClick={() => setDensity(density === "list" ? "cover" : "list")}
-            data-list-density-toggle
-          >
-            Titles
-          </button>
-        </div>
-        <select
-          value={platformFocus}
-          onChange={(event) => setPlatformFocus(event.target.value)}
-          aria-label="Highlight platform"
-          data-platform-focus-select
-        >
-          {platformOptions.map((platform) => (
-            <option key={platform.id} value={platform.id}>Highlight {platform.label}</option>
-          ))}
-        </select>
-        <select
-          value={platformFilter}
-          onChange={(event) => setPlatformFilter(event.target.value)}
-          aria-label="Filter by platform"
-          data-platform-filter
-        >
-          <option value="all">All platforms</option>
-          <option value="audio">Owned audio + gaps</option>
-          {(library.platforms || []).map((platform) => (
-            <option key={platform.id} value={platform.id}>{platform.label}</option>
-          ))}
-        </select>
-        <select value={seriesSort} onChange={(event) => setSeriesSort(event.target.value)} aria-label="Sort series" data-series-sort>
-          {Object.entries(SERIES_SORT).map(([id, sort]) => (
-            <option key={id} value={id}>{sort.label}</option>
-          ))}
-        </select>
-        <select value="" onChange={(event) => jumpToSeries(event.target.value)} aria-label="Jump to series" data-series-jump>
-          <option value="">Jump to series</option>
-          {filteredSeries.map((series) => (
-            <option key={series.id} value={series.id}>{series.title}</option>
-          ))}
-        </select>
-        <details className="tools-menu" data-tools-menu>
-          <summary>Tools</summary>
-          <div className="action-buttons" aria-label="View actions">
-            <button type="button" onClick={copyShareLink} data-copy-share-link>Share</button>
-            <button type="button" onClick={resetControls} data-reset-controls>Reset</button>
-            <button type="button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>CSV</button>
-            <button type="button" onClick={() => exportVisibleBooksJson(filteredSeries)} data-export-json>JSON</button>
-            <button type="button" onClick={copyMissingList} data-copy-missing-list>Missing</button>
-            <button type="button" onClick={() => window.print()} data-print-missing-list>Print</button>
+          <div className="segmented-control" data-status-filter>
+            {Object.entries(STATUS).map(([id, status]) => (
+              <button
+                key={id}
+                type="button"
+                className={statusFilter === id ? "active" : ""}
+                onClick={() => setStatusFilter(id)}
+              >
+                {status.label}
+              </button>
+            ))}
           </div>
-        </details>
-      </section>
+          <div className="series-tools" aria-label="Series view controls">
+            <button
+              type="button"
+              className={seriesView === "missing" ? "active" : ""}
+              onClick={() => setSeriesView(seriesView === "missing" ? "all" : "missing")}
+              data-missing-series-toggle
+            >
+              Gaps only
+            </button>
+            <button
+              type="button"
+              className={seriesView === "queue" ? "active" : ""}
+              onClick={() => setSeriesView(seriesView === "queue" ? "all" : "queue")}
+              data-queue-view-toggle
+            >
+              Queue
+            </button>
+            <button
+              type="button"
+              className={seriesView === "next" ? "active" : ""}
+              onClick={() => {
+                setStatusFilter("all");
+                setSeriesView(seriesView === "next" ? "all" : "next");
+              }}
+              data-next-up-view-toggle
+            >
+              Next up
+            </button>
+            <button
+              type="button"
+              className={seriesView === "authors" ? "active" : ""}
+              onClick={() => setSeriesView(seriesView === "authors" ? "all" : "authors")}
+              data-author-view-toggle
+            >
+              Authors
+            </button>
+            <button
+              type="button"
+              className={seriesView === ANALYTICS_VIEW ? "active" : ""}
+              onClick={() => setSeriesView(seriesView === ANALYTICS_VIEW ? "all" : ANALYTICS_VIEW)}
+              data-analytics-view-toggle
+            >
+              Analytics
+            </button>
+            <label className="check-control">
+              <input
+                type="checkbox"
+                checked={hideCompletedSeries}
+                onChange={(event) => setHideCompletedSeries(event.target.checked)}
+                data-hide-completed-toggle
+              />
+              <span>Hide complete</span>
+            </label>
+            <button
+              type="button"
+              className={density === "compact" ? "active" : ""}
+              onClick={() => setDensity(density === "compact" ? "cover" : "compact")}
+              data-density-toggle
+            >
+              Compact
+            </button>
+            <button
+              type="button"
+              className={density === "list" ? "active" : ""}
+              onClick={() => setDensity(density === "list" ? "cover" : "list")}
+              data-list-density-toggle
+            >
+              Titles
+            </button>
+          </div>
+          <select
+            value={platformFocus}
+            onChange={(event) => setPlatformFocus(event.target.value)}
+            aria-label="Highlight platform"
+            data-platform-focus-select
+          >
+            {platformOptions.map((platform) => (
+              <option key={platform.id} value={platform.id}>Highlight {platform.label}</option>
+            ))}
+          </select>
+          <select
+            value={platformFilter}
+            onChange={(event) => setPlatformFilter(event.target.value)}
+            aria-label="Filter by platform"
+            data-platform-filter
+          >
+            <option value="all">All platforms</option>
+            <option value="audio">Owned audio + gaps</option>
+            {(library.platforms || []).map((platform) => (
+              <option key={platform.id} value={platform.id}>{platform.label}</option>
+            ))}
+          </select>
+          <select value={seriesSort} onChange={(event) => setSeriesSort(event.target.value)} aria-label="Sort series" data-series-sort>
+            {Object.entries(SERIES_SORT).map(([id, sort]) => (
+              <option key={id} value={id}>{sort.label}</option>
+            ))}
+          </select>
+          <select value="" onChange={(event) => jumpToSeries(event.target.value)} aria-label="Jump to series" data-series-jump>
+            <option value="">Jump to series</option>
+            {filteredSeries.map((series) => (
+              <option key={series.id} value={series.id}>{series.title}</option>
+            ))}
+          </select>
+          <details className="tools-menu" data-tools-menu>
+            <summary>Tools</summary>
+            <div className="action-buttons" aria-label="View actions">
+              <button type="button" onClick={copyShareLink} data-copy-share-link>Share</button>
+              <button type="button" onClick={resetControls} data-reset-controls>Reset</button>
+              <button type="button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>CSV</button>
+              <button type="button" onClick={() => exportVisibleBooksJson(filteredSeries)} data-export-json>JSON</button>
+              <button type="button" onClick={copyMissingList} data-copy-missing-list>Missing</button>
+              <button type="button" onClick={() => window.print()} data-print-missing-list>Print</button>
+            </div>
+          </details>
+        </section>
+      </details>
 
-      <section className="source-row" aria-label="Data source">
-        <span>Source: {source}</span>
-        <span>{library.updatedAt ? `Updated ${library.updatedAt}` : "Draft data"}</span>
-        <span>{visibleStats.books} visible</span>
-        <span data-platform-focus-label>Focus: {activePlatformLabel}</span>
-        <a href={sourceMeta.url || DATA_WEB_URL} target="_blank" rel="noreferrer" data-source-sha>
-          Data {sourceMeta.sha ? sourceMeta.sha.slice(0, 7) : "source"}
-        </a>
-        <span data-app-version>App {APP_VERSION}</span>
-        {staleCachedData ? <strong data-stale-cache-warning>Cached data may be stale</strong> : null}
-        {actionMessage ? <em data-action-message>{actionMessage}</em> : null}
-      </section>
-
-      <section className="status-distribution" aria-label="Status distribution" data-status-distribution>
-        <span style={{ "--segment-color": "var(--green)", "--segment-size": `${totalStats.read || 0}` }}>Read {totalStats.read} titles</span>
-        <span style={{ "--segment-color": "var(--blue)", "--segment-size": `${totalStats.owned + totalStats.reading || 0}` }}>Owned {totalStats.owned + totalStats.reading} titles</span>
-        <span style={{ "--segment-color": "var(--amber)", "--segment-size": `${totalStats.queued || 0}` }}>Queued {totalStats.queued} titles</span>
-        <span style={{ "--segment-color": "var(--red)", "--segment-size": `${totalStats.unowned || 0}` }}>Missing {totalStats.unowned} titles</span>
-      </section>
-
-      <section className="diagnostics-row" aria-label="Import diagnostics" data-import-diagnostics>
-        <span>{diagnostics.series} series</span>
-        <span>{diagnostics.books} books</span>
-        <span>{diagnostics.coverIdCount} cover IDs</span>
-        <span>{diagnostics.titleCoverCount} title covers</span>
-        <span>{diagnostics.metadataCount} release metadata</span>
-        <span>{diagnostics.priorities} priorities</span>
-      </section>
+      {actionMessage ? <p className="action-toast" data-action-message>{actionMessage}</p> : null}
 
       <div className="workspace">
         {selected ? (
@@ -1026,7 +957,22 @@ function App() {
         ) : null}
 
         <section className="series-stack" data-series-stack>
-          {filteredSeries.length && seriesView === "authors" ? authorGroups.map((group) => (
+          {seriesView === ANALYTICS_VIEW ? (
+            <AnalyticsView
+              stateCounts={stateCounts}
+              platformStats={platformStats}
+              totalStats={totalStats}
+              diagnostics={diagnostics}
+              library={library}
+              source={source}
+              sourceMeta={sourceMeta}
+              staleCachedData={staleCachedData}
+              actionMessage={actionMessage}
+              setPlatformFocus={setPlatformFocus}
+              activePlatformLabel={activePlatformLabel}
+              visibleStats={visibleStats}
+            />
+          ) : filteredSeries.length && seriesView === "authors" ? authorGroups.map((group) => (
             <section className="author-group" key={group.author} data-author-group>
               <h2>{group.author}</h2>
               {group.series.map((series) => (
@@ -1081,6 +1027,105 @@ function App() {
         ))}
       </section>
     </main>
+  );
+}
+
+function AnalyticsView({
+  stateCounts,
+  platformStats,
+  totalStats,
+  diagnostics,
+  library,
+  source,
+  sourceMeta,
+  staleCachedData,
+  actionMessage,
+  setPlatformFocus,
+  activePlatformLabel,
+  visibleStats,
+}) {
+  return (
+    <section className="analytics-view" data-analytics-view>
+      <header>
+        <span className="eyebrow">Analytics</span>
+        <h2>Library health</h2>
+      </header>
+      <div className="summary-strip" aria-label="Library summary">
+        <Stat label="Books" value={totalStats.books} />
+        <Stat label="Read" value={totalStats.read} />
+        <Stat label="Queued" value={totalStats.queued + totalStats.reading} />
+        <Stat label="Missing" value={totalStats.unowned} />
+        <Stat label="Coverage" value={`${totalStats.progress}%`} />
+      </div>
+      <section className="series-state-strip" aria-label="Series state summary" data-series-state-summary>
+        <StateStat label="Read all" value={stateCounts.read || 0} tone="read" />
+        <StateStat label="Gap" value={stateCounts.gap || 0} tone="gap" />
+        <StateStat label="Missing" value={stateCounts.missing || 0} tone="missing" />
+        <StateStat label="Partial" value={stateCounts.partial || 0} tone="partial" />
+        <StateStat label="Collected" value={stateCounts.collected || 0} tone="collected" />
+      </section>
+      <section className="platform-strip" aria-label="Platform summary" data-platform-summary>
+        <button
+          type="button"
+          style={{ "--platform-color": "#14b8a6" }}
+          onClick={() => setPlatformFocus("audio")}
+          data-platform-focus="audio"
+        >
+          <span aria-hidden="true" />
+          <strong>Owned audio</strong>
+          <em>{platformStats.audio}</em>
+        </button>
+        {platformStats.platforms.map((platform) => (
+          <button
+            key={platform.id}
+            type="button"
+            style={{ "--platform-color": platform.color || "#64748b" }}
+            onClick={() => setPlatformFocus(platform.id)}
+            data-platform-focus={platform.id}
+          >
+            <span aria-hidden="true" />
+            <strong>{platform.label}</strong>
+            <em>{platform.count}</em>
+          </button>
+        ))}
+        <button
+          type="button"
+          style={{ "--platform-color": "var(--red)" }}
+          onClick={() => setPlatformFocus("missing")}
+          data-platform-focus="missing"
+        >
+          <span aria-hidden="true" />
+          <strong>Missing</strong>
+          <em>{platformStats.missing}</em>
+        </button>
+      </section>
+      <section className="status-distribution" aria-label="Status distribution" data-status-distribution>
+        <span style={{ "--segment-color": "var(--green)", "--segment-size": `${totalStats.read || 0}` }}>Read {totalStats.read} titles</span>
+        <span style={{ "--segment-color": "var(--blue)", "--segment-size": `${totalStats.owned + totalStats.reading || 0}` }}>Owned {totalStats.owned + totalStats.reading} titles</span>
+        <span style={{ "--segment-color": "var(--amber)", "--segment-size": `${totalStats.queued || 0}` }}>Queued {totalStats.queued} titles</span>
+        <span style={{ "--segment-color": "var(--red)", "--segment-size": `${totalStats.unowned || 0}` }}>Missing {totalStats.unowned} titles</span>
+      </section>
+      <section className="source-row" aria-label="Data source">
+        <span>Source: {source}</span>
+        <span>{library.updatedAt ? `Updated ${library.updatedAt}` : "Draft data"}</span>
+        <span>{visibleStats.books} visible</span>
+        <span>Focus: {activePlatformLabel}</span>
+        <a href={sourceMeta.url || DATA_WEB_URL} target="_blank" rel="noreferrer" data-source-sha>
+          Data {sourceMeta.sha ? sourceMeta.sha.slice(0, 7) : "source"}
+        </a>
+        <span data-app-version>App {APP_VERSION}</span>
+        {staleCachedData ? <strong data-stale-cache-warning>Cached data may be stale</strong> : null}
+        {actionMessage ? <em>{actionMessage}</em> : null}
+      </section>
+      <section className="diagnostics-row" aria-label="Import diagnostics" data-import-diagnostics>
+        <span>{diagnostics.series} series</span>
+        <span>{diagnostics.books} books</span>
+        <span>{diagnostics.coverIdCount} cover IDs</span>
+        <span>{diagnostics.titleCoverCount} title covers</span>
+        <span>{diagnostics.metadataCount} release metadata</span>
+        <span>{diagnostics.priorities} priorities</span>
+      </section>
+    </section>
   );
 }
 

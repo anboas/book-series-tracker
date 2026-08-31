@@ -37,7 +37,7 @@ try {
     const page = await browser.newPage({ viewport });
     await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-book-series-app]");
-    await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
+    await page.waitForFunction(() => document.querySelector("[data-attention-banner]")?.innerText.includes("32 missing"));
     await page.screenshot({ path: `${OUT_DIR}/${name}.png`, fullPage: true });
     await page.close();
   }
