@@ -225,14 +225,14 @@ button {
 .attention-banner button {
   display: grid;
   gap: 5px;
-  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
 .attention-banner button:hover,
 .attention-banner button:focus-visible {
   border-color: var(--red);
   background: #21101a;
-  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red), transparent 28%);
 }
 
 .attention-banner b {
@@ -240,6 +240,7 @@ button {
   color: var(--red);
   font-size: 11px;
   font-weight: 950;
+  line-height: 1.3;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -251,7 +252,7 @@ button {
   color: var(--text);
   font-size: 12px;
   font-weight: 850;
-  line-height: 1.2;
+  line-height: 1.28;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -289,6 +290,7 @@ button {
   overflow: hidden;
   font-size: 12px;
   font-weight: 950;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -390,13 +392,14 @@ h1 {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  padding: 0 12px;
+  padding: 5px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(16, 21, 34, 0.88);
   color: var(--text);
   font-size: 12px;
   font-weight: 950;
+  line-height: 1.25;
   list-style: none;
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease;
@@ -432,12 +435,14 @@ h1 {
 .control-bar a,
 .tools-menu summary {
   min-height: 38px;
+  padding-block: 5px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
   color: var(--text);
   font-size: 12px;
   font-weight: 850;
+  line-height: 1.25;
 }
 
 .search-control {
@@ -457,7 +462,7 @@ h1 {
 
 .search-control input {
   width: 100%;
-  padding: 0 12px;
+  padding: 5px 12px;
   outline: none;
 }
 
@@ -468,7 +473,7 @@ h1 {
 
 .segmented-control button {
   flex: 0 0 auto;
-  padding: 0 13px;
+  padding: 5px 13px;
 }
 
 .series-tools {
@@ -481,7 +486,7 @@ h1 {
 }
 
 .series-tools button {
-  padding: 0 11px;
+  padding: 5px 11px;
 }
 
 .series-tools button.active {
@@ -495,13 +500,14 @@ h1 {
   gap: 7px;
   min-height: 38px;
   min-width: 0;
-  padding: 0 10px;
+  padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
   color: var(--text);
   font-size: 12px;
   font-weight: 850;
+  line-height: 1.25;
 }
 
 .check-control input {
@@ -530,7 +536,7 @@ h1 {
 .control-bar select {
   grid-column: span 1;
   width: 100%;
-  padding: 0 10px;
+  padding: 5px 10px;
 }
 
 .tools-menu {
@@ -544,9 +550,10 @@ h1 {
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0 10px;
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: 850;
+  line-height: 1.25;
   list-style: none;
   cursor: pointer;
 }
@@ -586,12 +593,13 @@ h1 {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  padding: 0 8px;
+  padding: 5px 8px;
+  line-height: 1.25;
   text-decoration: none;
 }
 
 .control-bar .export-button {
-  padding: 0 11px;
+  padding: 5px 11px;
 }
 
 .source-row {
@@ -650,6 +658,7 @@ h1 {
   color: var(--text);
   font-size: 11px;
   font-weight: 950;
+  line-height: 1.25;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -802,7 +811,7 @@ h1 {
   color: var(--muted);
   font-size: 10px;
   font-weight: 950;
-  line-height: 1;
+  line-height: 1.25;
   text-transform: uppercase;
 }
 
@@ -894,13 +903,14 @@ h1 {
 .collapse-button {
   justify-self: end;
   min-height: 26px;
-  padding: 0 9px;
+  padding: 4px 9px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel-soft);
   color: var(--text);
   font-size: 11px;
   font-weight: 950;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
@@ -925,15 +935,15 @@ h1 {
   align-items: center;
   justify-content: center;
   min-width: 28px;
-  height: 24px;
-  padding: 0 6px;
+  min-height: 24px;
+  padding: 3px 6px;
   border: 1px solid var(--border-soft);
   border-radius: 999px;
   background: var(--panel-soft);
   color: var(--text);
   font-size: 10px;
   font-weight: 950;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .timeline-chip--green {
@@ -1090,13 +1100,14 @@ h1 {
   align-items: center;
   justify-content: center;
   min-width: 30px;
-  height: 24px;
-  padding: 0 7px;
+  min-height: 24px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: rgba(8, 10, 18, 0.86);
   color: var(--text);
   font-size: 11px;
   font-weight: 950;
+  line-height: 1.2;
 }
 
 .status-pill {
@@ -1107,12 +1118,13 @@ h1 {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  padding: 0 8px;
+  padding: 3px 8px;
   border-radius: 999px;
   background: #1f2937;
   color: var(--text);
   font-size: 10px;
   font-weight: 950;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
@@ -1466,7 +1478,7 @@ h1 {
 
   .primary-lens-bar button {
     min-height: 40px;
-    padding: 0 8px;
+    padding: 5px 8px;
   }
 
   .primary-lens-bar b,
@@ -1556,7 +1568,7 @@ h1 {
 
   .collapse-button {
     min-height: 24px;
-    padding: 0 8px;
+    padding: 4px 8px;
     font-size: 10px;
   }
 
@@ -1575,8 +1587,8 @@ h1 {
   .timeline-chip {
     flex: 0 0 auto;
     min-width: 26px;
-    height: 23px;
-    padding: 0 6px;
+    min-height: 23px;
+    padding: 3px 6px;
     font-size: 9px;
   }
 
@@ -1597,12 +1609,12 @@ h1 {
 
   .status-pill {
     min-height: 22px;
-    padding: 0 7px;
+    padding: 3px 7px;
     font-size: 9px;
   }
 
   .book-order {
-    height: 22px;
+    min-height: 22px;
     min-width: 28px;
     font-size: 10px;
   }

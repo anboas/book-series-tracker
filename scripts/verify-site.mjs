@@ -38,6 +38,30 @@ async function openFilters(page) {
   }
 }
 
+async function assertTextNotClipped(locator, label) {
+  const metrics = await locator.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const children = [...node.querySelectorAll("b, span, strong, em")].map((child) => {
+      const childBox = child.getBoundingClientRect();
+      const style = getComputedStyle(child);
+      return {
+        text: child.textContent?.trim() || "",
+        top: childBox.top - box.top,
+        bottom: box.bottom - childBox.bottom,
+        height: childBox.height,
+        lineHeight: Number.parseFloat(style.lineHeight),
+        fontSize: Number.parseFloat(style.fontSize),
+      };
+    });
+    return { height: box.height, children };
+  });
+  for (const child of metrics.children.filter((item) => item.text)) {
+    assert.ok(child.top >= 2, `${label} text should not clip against the top edge: ${JSON.stringify(child)}`);
+    assert.ok(child.bottom >= 2, `${label} text should not clip against the bottom edge: ${JSON.stringify(child)}`);
+    assert.ok(child.lineHeight >= child.fontSize * 1.15, `${label} text should have usable line height: ${JSON.stringify(child)}`);
+  }
+}
+
 try {
   for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     const page = await browser.newPage({ viewport });
@@ -92,7 +116,12 @@ try {
     await page.waitForFunction(() => document.querySelector('[data-book-card][data-platform-match="false"]'));
     assert.match(await page.locator("[data-next-unread-strip]").innerText(), /32 missing/i, "attention banner should summarize unread gaps");
     assert.match(await page.locator("[data-next-unread-strip]").innerText(), /He Who Fights with Monsters[\s\S]*#6 He Who Fights with Monsters 6/i, "attention banner should surface priority gaps");
+    const attentionCard = page.locator("[data-next-unread]").first();
+    await assertTextNotClipped(attentionCard, "attention card");
+    await attentionCard.hover();
+    await assertTextNotClipped(attentionCard, "hovered attention card");
     assert.match(await page.locator("[data-primary-lens-bar]").innerText(), /All[\s\S]*201[\s\S]*Owned audio[\s\S]*169[\s\S]*Unread[\s\S]*32[\s\S]*Next up[\s\S]*5/i, "primary lens bar should summarize core reading modes");
+    await assertTextNotClipped(page.locator("[data-primary-lens]").first(), "primary lens");
     const dccBadges = await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-badges]').innerText();
     assert.match(dccBadges, /1 read/i, "series header should show read count badge");
     assert.match(dccBadges, /6 missing/i, "series header should show missing count badge");
