@@ -6,6 +6,7 @@ import "./styles.css";
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
 const DATA_WEB_URL = "https://github.com/anboas/reading-list-data/blob/main/books.json";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
+const APP_VERSION = "0.1.0";
 const CONTROL_STORAGE_KEY = "book-series-tracker:controls";
 const LIBRARY_CACHE_KEY = "book-series-tracker:library";
 const coverResolutionCache = new Map();
@@ -59,29 +60,29 @@ const SERIES_SORT = {
     compare: (a, b) => a.title.localeCompare(b.title) || a.sortIndex - b.sortIndex,
   },
 };
+const CONTROL_DEFAULTS = {
+  statusFilter: "all",
+  platformFilter: "all",
+  seriesSort: "library",
+  searchQuery: "",
+  seriesView: "all",
+  hideCompletedSeries: false,
+  density: "cover",
+};
+const DENSITY_ORDER = ["cover", "compact", "list"];
 
 function readStoredControls() {
-  const defaults = {
-    statusFilter: "all",
-    platformFilter: "all",
-    seriesSort: "library",
-    searchQuery: "",
-    seriesView: "all",
-    hideCompletedSeries: false,
-    density: "cover",
-  };
-
   try {
     const parsed = JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || "{}");
     const params = new URLSearchParams(window.location.search);
     const controls = {
-      statusFilter: STATUS[parsed.statusFilter] ? parsed.statusFilter : defaults.statusFilter,
-      platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : defaults.platformFilter,
-      seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : defaults.seriesSort,
-      searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : defaults.searchQuery,
-      seriesView: ["missing", "queue"].includes(parsed.seriesView) ? parsed.seriesView : defaults.seriesView,
-      hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : defaults.hideCompletedSeries,
-      density: parsed.density === "compact" ? "compact" : defaults.density,
+      statusFilter: STATUS[parsed.statusFilter] ? parsed.statusFilter : CONTROL_DEFAULTS.statusFilter,
+      platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : CONTROL_DEFAULTS.platformFilter,
+      seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : CONTROL_DEFAULTS.seriesSort,
+      searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : CONTROL_DEFAULTS.searchQuery,
+      seriesView: ["missing", "queue"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
+      hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : CONTROL_DEFAULTS.hideCompletedSeries,
+      density: DENSITY_ORDER.includes(parsed.density) ? parsed.density : CONTROL_DEFAULTS.density,
     };
     const status = params.get("status");
     const sort = params.get("sort");
@@ -92,10 +93,10 @@ function readStoredControls() {
     if (params.has("q")) controls.searchQuery = params.get("q") || "";
     if (["all", "missing", "queue"].includes(view)) controls.seriesView = view;
     if (params.has("hideComplete")) controls.hideCompletedSeries = params.get("hideComplete") === "1";
-    if (params.get("density") === "compact") controls.density = "compact";
+    if (DENSITY_ORDER.includes(params.get("density"))) controls.density = params.get("density");
     return controls;
   } catch {
-    return defaults;
+    return CONTROL_DEFAULTS;
   }
 }
 
@@ -108,7 +109,7 @@ function writeStoredControls(controls) {
 }
 
 function writeUrlControls(controls) {
-  const defaults = readStoredControls.defaults;
+  const defaults = CONTROL_DEFAULTS;
   const params = new URLSearchParams();
   if (controls.statusFilter !== defaults.statusFilter) params.set("status", controls.statusFilter);
   if (controls.platformFilter !== defaults.platformFilter) params.set("platform", controls.platformFilter);
@@ -120,16 +121,6 @@ function writeUrlControls(controls) {
   const nextUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
   window.history.replaceState(null, "", nextUrl);
 }
-
-readStoredControls.defaults = {
-  statusFilter: "all",
-  platformFilter: "all",
-  seriesSort: "library",
-  searchQuery: "",
-  seriesView: "all",
-  hideCompletedSeries: false,
-  density: "cover",
-};
 
 function readCachedLibrary() {
   try {
@@ -155,14 +146,16 @@ function writeCachedLibrary(library) {
 function useLibrary() {
   const [library, setLibrary] = useState(fallbackLibrary);
   const [source, setSource] = useState("Bundled draft");
+  const [sourceMeta, setSourceMeta] = useState({ cachedAt: "", sha: "", url: DATA_WEB_URL });
 
   useEffect(() => {
     let cancelled = false;
     fetchGithubData()
-      .then((data) => {
+      .then(({ library: data, sha, url }) => {
         if (!cancelled) {
           setLibrary(data);
           setSource("GitHub");
+          setSourceMeta({ cachedAt: "", sha, url: url || DATA_WEB_URL });
           writeCachedLibrary(data);
         }
       })
@@ -172,8 +165,10 @@ function useLibrary() {
           if (cached) {
             setLibrary(cached.library);
             setSource(`Cached GitHub${cached.cachedAt ? ` ${cached.cachedAt.slice(0, 10)}` : ""}`);
+            setSourceMeta({ cachedAt: cached.cachedAt || "", sha: "", url: DATA_WEB_URL });
           } else {
             setSource("Bundled draft");
+            setSourceMeta({ cachedAt: "", sha: "", url: DATA_WEB_URL });
           }
         }
       });
@@ -182,7 +177,7 @@ function useLibrary() {
     };
   }, []);
 
-  return { library, source };
+  return { library, source, sourceMeta };
 }
 
 async function fetchGithubData() {
@@ -198,16 +193,20 @@ async function fetchGithubData() {
       const compact = parsed.content.replace(/\s/g, "");
       const binary = atob(compact);
       const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-      return JSON.parse(new TextDecoder().decode(bytes));
+      return {
+        library: JSON.parse(new TextDecoder().decode(bytes)),
+        sha: parsed.sha || "",
+        url: parsed.html_url || DATA_WEB_URL,
+      };
     }
-    return parsed;
+    return { library: parsed, sha: "", url: DATA_WEB_URL };
   } catch {
     const response = await fetch(`${DATA_URL}?cache=${Date.now()}`, {
       cache: "no-store",
       headers: { accept: "application/json" },
     });
     if (!response.ok) throw new Error(`GitHub Raw returned ${response.status}`);
-    return response.json();
+    return { library: await response.json(), sha: "", url: DATA_WEB_URL };
   }
 }
 
@@ -326,6 +325,17 @@ function csvEscape(value) {
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+function downloadText(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
 function exportVisibleBooks(series) {
   const rows = visibleBooksFor(series);
   const headers = ["series", "order", "title", "author", "status", "platforms", "source"];
@@ -339,14 +349,47 @@ function exportVisibleBooks(series) {
           : book[header] || "",
     )).join(",")),
   ].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "book-series-current-view.csv";
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+  downloadText("book-series-current-view.csv", csv, "text/csv;charset=utf-8");
+}
+
+function exportVisibleBooksJson(series) {
+  downloadText(
+    "book-series-current-view.json",
+    `${JSON.stringify({ exportedAt: new Date().toISOString(), series }, null, 2)}\n`,
+    "application/json;charset=utf-8",
+  );
+}
+
+function missingBooksBySeries(series = []) {
+  return series.map((item) => ({
+    series: item,
+    books: (item.books || []).filter((book) => book.status === "unowned"),
+  })).filter((item) => item.books.length);
+}
+
+function missingListText(series = []) {
+  const groups = missingBooksBySeries(series);
+  if (!groups.length) return "No missing books.";
+  return groups.map(({ series: item, books }) => [
+    item.title,
+    ...books.map((book) => `- #${book.order} ${book.title}${book.author ? ` by ${book.author}` : ""}`),
+  ].join("\n")).join("\n\n");
+}
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.append(input);
+  input.select();
+  document.execCommand("copy");
+  input.remove();
 }
 
 function jumpToSeries(seriesId) {
@@ -366,8 +409,21 @@ function bookMetadataFor(book) {
   return book.releaseDate || book.publicationDate || book.year || book.publicationYear || "";
 }
 
+function openLibrarySearchUrl(book) {
+  return `https://openlibrary.org/search?${new URLSearchParams({
+    title: book.title || "",
+    author: book.author || "",
+  })}`;
+}
+
+function missingTitleSearchUrl(book) {
+  return `https://www.google.com/search?${new URLSearchParams({
+    q: `${book.title || ""} ${book.author || ""} audiobook`,
+  })}`;
+}
+
 function App() {
-  const { library, source } = useLibrary();
+  const { library, source, sourceMeta } = useLibrary();
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
   const initialControls = useMemo(() => readStoredControls(), []);
   const [statusFilter, setStatusFilter] = useState(initialControls.statusFilter);
@@ -378,6 +434,7 @@ function App() {
   const [hideCompletedSeries, setHideCompletedSeries] = useState(initialControls.hideCompletedSeries);
   const [density, setDensity] = useState(initialControls.density);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
     if ((library.platforms || []).length && platformFilter !== "all" && !platforms[platformFilter]) {
@@ -438,6 +495,25 @@ function App() {
   const stateCounts = seriesStateCountsFor(library.series || []);
   const platformStats = platformStatsFor(library.series || [], library.platforms || []);
   const selected = selectedBook;
+  const cacheAgeMs = sourceMeta.cachedAt ? Date.now() - new Date(sourceMeta.cachedAt).getTime() : 0;
+  const staleCachedData = sourceMeta.cachedAt && cacheAgeMs > 1000 * 60 * 60 * 24;
+  const resetControls = () => {
+    setStatusFilter(CONTROL_DEFAULTS.statusFilter);
+    setPlatformFilter(CONTROL_DEFAULTS.platformFilter);
+    setSeriesSort(CONTROL_DEFAULTS.seriesSort);
+    setSearchQuery(CONTROL_DEFAULTS.searchQuery);
+    setSeriesView(CONTROL_DEFAULTS.seriesView);
+    setHideCompletedSeries(CONTROL_DEFAULTS.hideCompletedSeries);
+    setDensity(CONTROL_DEFAULTS.density);
+    setActionMessage("Controls reset");
+  };
+  const copyShareLink = () => {
+    writeUrlControls({ statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries, density });
+    copyText(window.location.href).then(() => setActionMessage("Share link copied")).catch(() => setActionMessage("Copy failed"));
+  };
+  const copyMissingList = () => {
+    copyText(missingListText(library.series || [])).then(() => setActionMessage("Missing list copied")).catch(() => setActionMessage("Copy failed"));
+  };
   const clearSelectedBook = () => {
     setSelectedBook(null);
     if (document.activeElement?.closest?.("[data-book-card]")) {
@@ -538,6 +614,14 @@ function App() {
           >
             Compact
           </button>
+          <button
+            type="button"
+            className={density === "list" ? "active" : ""}
+            onClick={() => setDensity(density === "list" ? "cover" : "list")}
+            data-list-density-toggle
+          >
+            Titles
+          </button>
         </div>
         <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} aria-label="Filter by platform">
           <option value="all">All platforms</option>
@@ -556,16 +640,33 @@ function App() {
             <option key={series.id} value={series.id}>{series.title}</option>
           ))}
         </select>
-        <button type="button" className="export-button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>
-          Export
-        </button>
-        <a href={DATA_URL} target="_blank" rel="noreferrer">GitHub data</a>
+        <div className="action-buttons" aria-label="View actions">
+          <button type="button" onClick={copyShareLink} data-copy-share-link>Share</button>
+          <button type="button" onClick={resetControls} data-reset-controls>Reset</button>
+          <button type="button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>CSV</button>
+          <button type="button" onClick={() => exportVisibleBooksJson(filteredSeries)} data-export-json>JSON</button>
+          <button type="button" onClick={copyMissingList} data-copy-missing-list>Missing</button>
+          <button type="button" onClick={() => window.print()} data-print-missing-list>Print</button>
+        </div>
       </section>
 
       <section className="source-row" aria-label="Data source">
         <span>Source: {source}</span>
         <span>{library.updatedAt ? `Updated ${library.updatedAt}` : "Draft data"}</span>
         <span>{visibleStats.books} visible</span>
+        <a href={sourceMeta.url || DATA_WEB_URL} target="_blank" rel="noreferrer" data-source-sha>
+          Data {sourceMeta.sha ? sourceMeta.sha.slice(0, 7) : "source"}
+        </a>
+        <span data-app-version>App {APP_VERSION}</span>
+        {staleCachedData ? <strong data-stale-cache-warning>Cached data may be stale</strong> : null}
+        {actionMessage ? <em data-action-message>{actionMessage}</em> : null}
+      </section>
+
+      <section className="status-distribution" aria-label="Status distribution" data-status-distribution>
+        <span style={{ "--segment-color": "var(--green)", "--segment-size": `${totalStats.read || 0}` }}>Read {totalStats.read} titles</span>
+        <span style={{ "--segment-color": "var(--blue)", "--segment-size": `${totalStats.owned + totalStats.reading || 0}` }}>Owned {totalStats.owned + totalStats.reading} titles</span>
+        <span style={{ "--segment-color": "var(--amber)", "--segment-size": `${totalStats.queued || 0}` }}>Queued {totalStats.queued} titles</span>
+        <span style={{ "--segment-color": "var(--red)", "--segment-size": `${totalStats.unowned || 0}` }}>Missing {totalStats.unowned} titles</span>
       </section>
 
       <div className="workspace">
@@ -591,6 +692,19 @@ function App() {
           )}
         </section>
       </div>
+      <section className="print-missing-list" aria-label="Printable missing books">
+        <h2>Missing Books</h2>
+        {missingBooksBySeries(library.series || []).map(({ series, books }) => (
+          <article key={series.id}>
+            <h3>{series.title}</h3>
+            <ul>
+              {books.map((book) => (
+                <li key={`${series.id}-${book.order}`}>#{book.order} {book.title}{book.author ? ` by ${book.author}` : ""}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </section>
     </main>
   );
 }
@@ -792,6 +906,16 @@ function BookDetail({ book, platforms }) {
         <a className="source-link" href={DATA_WEB_URL} target="_blank" rel="noreferrer" data-source-link>
           Source data
         </a>
+        <div className="detail-links">
+          <a href={openLibrarySearchUrl(book)} target="_blank" rel="noreferrer" data-open-library-link>
+            Open Library
+          </a>
+          {book.status === "unowned" ? (
+            <a href={missingTitleSearchUrl(book)} target="_blank" rel="noreferrer" data-missing-search-link>
+              Find missing title
+            </a>
+          ) : null}
+        </div>
       </div>
       <div className="detail-platforms">
         <span>Platforms</span>
