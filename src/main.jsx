@@ -6,6 +6,7 @@ import "./styles.css";
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
 const DATA_WEB_URL = "https://github.com/anboas/reading-list-data/blob/main/books.json";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
+const GITHUB_API_COMMIT_URL = "https://api.github.com/repos/anboas/reading-list-data/commits/main";
 const APP_VERSION = "0.1.0";
 const CONTROL_STORAGE_KEY = "book-series-tracker:controls";
 const LIBRARY_CACHE_KEY = "book-series-tracker:library";
@@ -193,9 +194,21 @@ async function fetchGithubData() {
       const compact = parsed.content.replace(/\s/g, "");
       const binary = atob(compact);
       const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      let commitSha = "";
+      try {
+        const commitResponse = await fetch(`${GITHUB_API_COMMIT_URL}?cache=${Date.now()}`, {
+          cache: "no-store",
+          headers: { accept: "application/vnd.github+json" },
+        });
+        if (commitResponse.ok) {
+          commitSha = (await commitResponse.json()).sha || "";
+        }
+      } catch {
+        commitSha = "";
+      }
       return {
         library: JSON.parse(new TextDecoder().decode(bytes)),
-        sha: parsed.sha || "",
+        sha: commitSha || parsed.sha || "",
         url: parsed.html_url || DATA_WEB_URL,
       };
     }
