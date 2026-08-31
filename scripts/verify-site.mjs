@@ -46,6 +46,10 @@ try {
     assert.doesNotMatch(text, /The Land/);
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
+    assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "he-who-fights-with-monsters", "default sort should preserve library order");
+    await page.locator("[data-series-sort]").selectOption("coverage");
+    assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "dungeon-crawler-carl", "least-covered sort should surface Dungeon Crawler Carl first");
+    await page.locator("[data-series-sort]").selectOption("library");
     const workspaceWidth = await page.locator(".workspace").evaluate((node) => node.getBoundingClientRect().width);
     assert.ok(workspaceWidth >= viewport.width - 24, `workspace should use available width at ${viewport.width}: ${workspaceWidth}`);
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').count(), 7, "Dungeon Crawler Carl should render the full seven-book main series");

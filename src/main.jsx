@@ -14,6 +14,48 @@ const STATUS = {
   queued: { label: "Queued", tone: "amber" },
   unowned: { label: "Missing", tone: "red" },
 };
+const SERIES_SORT = {
+  library: {
+    label: "Library order",
+    compare: (a, b) => a.sortIndex - b.sortIndex,
+  },
+  coverage: {
+    label: "Least covered",
+    compare: (a, b) => (
+      a.sortStats.progress - b.sortStats.progress ||
+      b.sortStats.unowned - a.sortStats.unowned ||
+      a.sortIndex - b.sortIndex
+    ),
+  },
+  missing: {
+    label: "Most missing",
+    compare: (a, b) => (
+      b.sortStats.unowned - a.sortStats.unowned ||
+      a.sortStats.progress - b.sortStats.progress ||
+      a.sortIndex - b.sortIndex
+    ),
+  },
+  size: {
+    label: "Largest series",
+    compare: (a, b) => (
+      b.sortStats.books - a.sortStats.books ||
+      b.sortStats.unowned - a.sortStats.unowned ||
+      a.sortIndex - b.sortIndex
+    ),
+  },
+  owned: {
+    label: "Most owned",
+    compare: (a, b) => (
+      b.sortStats.tracked - a.sortStats.tracked ||
+      b.sortStats.books - a.sortStats.books ||
+      a.sortIndex - b.sortIndex
+    ),
+  },
+  title: {
+    label: "Series A-Z",
+    compare: (a, b) => a.title.localeCompare(b.title) || a.sortIndex - b.sortIndex,
+  },
+};
 
 function useLibrary() {
   const [library, setLibrary] = useState(fallbackLibrary);
@@ -125,18 +167,23 @@ function App() {
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [seriesSort, setSeriesSort] = useState("library");
   const [selectedBook, setSelectedBook] = useState(null);
 
   const filteredSeries = useMemo(() => {
-    return (library.series || []).map((series) => ({
+    const mappedSeries = (library.series || []).map((series, index) => ({
       ...series,
+      sortIndex: index,
+      sortStats: statsFor([series]),
       books: (series.books || []).filter((book) => {
         if (statusFilter !== "all" && book.status !== statusFilter) return false;
         if (platformFilter !== "all" && !(book.platforms || []).includes(platformFilter)) return false;
         return true;
       }),
     }));
-  }, [library.series, platformFilter, statusFilter]);
+
+    return mappedSeries.sort(SERIES_SORT[seriesSort]?.compare || SERIES_SORT.library.compare);
+  }, [library.series, platformFilter, seriesSort, statusFilter]);
 
   const visibleStats = statsFor(filteredSeries);
   const totalStats = statsFor(library.series || []);
@@ -182,6 +229,11 @@ function App() {
           <option value="all">All platforms</option>
           {(library.platforms || []).map((platform) => (
             <option key={platform.id} value={platform.id}>{platform.label}</option>
+          ))}
+        </select>
+        <select value={seriesSort} onChange={(event) => setSeriesSort(event.target.value)} aria-label="Sort series" data-series-sort>
+          {Object.entries(SERIES_SORT).map(([id, sort]) => (
+            <option key={id} value={id}>{sort.label}</option>
           ))}
         </select>
         <a href={DATA_URL} target="_blank" rel="noreferrer">GitHub data</a>
