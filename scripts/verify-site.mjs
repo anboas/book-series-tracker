@@ -63,7 +63,33 @@ try {
     assert.match(stateSummary, /40\s+Read all/i, "state summary should count fully read series");
     assert.match(stateSummary, /3\s+Gap/i, "state summary should count mostly covered gap series");
     assert.match(stateSummary, /4\s+Missing/i, "state summary should count missing-heavy series");
-    assert.match(await page.locator("[data-platform-summary]").innerText(), /Audible\s+169/i, "platform summary should count Audible titles");
+    const platformSummary = await page.locator("[data-platform-summary]").innerText();
+    assert.match(platformSummary, /Owned audio\s+169/i, "platform summary should count audio-owned titles");
+    assert.match(platformSummary, /Audible\s+169/i, "platform summary should count Audible titles");
+    assert.match(platformSummary, /AudioBookshelf\s+0/i, "platform summary should expose AudioBookshelf before imports exist");
+    assert.match(platformSummary, /Missing\s+23/i, "platform summary should count missing titles");
+    assert.match(await page.locator("[data-next-unread-strip]").innerText(), /23 missing titles/i, "next unread strip should summarize unread gaps");
+    assert.match(await page.locator("[data-next-unread-strip]").innerText(), /He Who Fights with Monsters[\s\S]*#6 He Who Fights with Monsters 6/i, "next unread strip should surface priority gaps");
+    await page.locator('[data-platform-focus="audible"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-book-card][data-platform-match="false"]'));
+    assert.match(page.url(), /focus=audible/, "platform focus should be shareable in the URL");
+    assert.match(await page.locator("[data-platform-focus-label]").innerText(), /Focus: Audible/i, "source row should show active platform focus");
+    assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-platform-focus-count"), "1", "platform focus count should use full series data");
+    assert.ok(await page.locator('[data-book-card][data-platform-match="true"]').count() >= 160, "Audible focus should mark matching books");
+    assert.ok(await page.locator('[data-book-card][data-platform-match="false"]').count() >= 20, "Audible focus should mute missing gaps without hiding them");
+    await page.locator("[data-platform-focus-select]").selectOption("missing");
+    await page.waitForFunction(() => (
+      [...document.querySelectorAll('[data-series-id="dungeon-crawler-carl"] [data-book-card][data-platform-match="true"]')]
+        .some((card) => card.textContent?.includes("Carl's Doomsday Scenario"))
+    ));
+    assert.match(await page.locator("[data-platform-focus-label]").innerText(), /Focus: Missing/i, "missing focus should be selectable");
+    assert.ok(await page.locator('[data-book-card][data-platform-match="true"]').count() >= 20, "missing focus should highlight gap cards");
+    await page.locator("[data-platform-focus-select]").selectOption("all");
+    await page.locator("[data-platform-filter]").selectOption("audible");
+    await page.locator("[data-status-filter] button", { hasText: "Missing" }).click();
+    assert.equal(await page.locator("[data-book-card]").count(), 23, "Audible platform filter should keep unread gaps from Audible-owned series");
+    await page.locator("[data-platform-filter]").selectOption("all");
+    await page.locator("[data-status-filter] button", { hasText: "All" }).click();
     await page.locator("[data-series-jump]").selectOption("dungeon-crawler-carl");
     await page.waitForFunction(() => Math.abs(document.querySelector('[data-series-id="dungeon-crawler-carl"]').getBoundingClientRect().top) < 80);
     await page.locator("[data-queue-view-toggle]").click();
@@ -86,7 +112,7 @@ try {
     await page.locator("[data-missing-series-toggle]").click();
     assert.equal(await page.locator("[data-series-stack] > article").count(), 7, "missing-series view should show only series with gaps");
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').count(), 0, "missing-series view should hide complete series");
-    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-next-missing]').innerText(), /#2 Carl's Doomsday Scenario/i);
+    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-next-missing]').innerText(), /#2 Carl's Doomsday Scenario[\s\S]*#3 The Dungeon Anarchist's Cookbook/i);
     await page.locator("[data-missing-series-toggle]").click();
     await page.locator("[data-hide-completed-toggle]").check();
     assert.equal(await page.locator("[data-series-stack] > article").count(), 7, "hide-completed should remove fully read rows");

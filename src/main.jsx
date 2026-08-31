@@ -11,6 +11,7 @@ const APP_VERSION = "0.1.0";
 const CONTROL_STORAGE_KEY = "book-series-tracker:controls";
 const LIBRARY_CACHE_KEY = "book-series-tracker:library";
 const coverResolutionCache = new Map();
+const AUDIO_PLATFORM_IDS = new Set(["audible", "audiobookshelf"]);
 const STATUS = {
   all: { label: "All", tone: "neutral" },
   owned: { label: "Owned", tone: "blue" },
@@ -64,6 +65,7 @@ const SERIES_SORT = {
 const CONTROL_DEFAULTS = {
   statusFilter: "all",
   platformFilter: "all",
+  platformFocus: "all",
   seriesSort: "library",
   searchQuery: "",
   seriesView: "all",
@@ -79,6 +81,7 @@ function readStoredControls() {
     const controls = {
       statusFilter: STATUS[parsed.statusFilter] ? parsed.statusFilter : CONTROL_DEFAULTS.statusFilter,
       platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : CONTROL_DEFAULTS.platformFilter,
+      platformFocus: typeof parsed.platformFocus === "string" ? parsed.platformFocus : CONTROL_DEFAULTS.platformFocus,
       seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : CONTROL_DEFAULTS.seriesSort,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : CONTROL_DEFAULTS.searchQuery,
       seriesView: ["missing", "queue", "authors"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
@@ -91,6 +94,7 @@ function readStoredControls() {
     if (STATUS[status]) controls.statusFilter = status;
     if (SERIES_SORT[sort]) controls.seriesSort = sort;
     if (params.has("platform")) controls.platformFilter = params.get("platform") || "all";
+    if (params.has("focus")) controls.platformFocus = params.get("focus") || "all";
     if (params.has("q")) controls.searchQuery = params.get("q") || "";
     if (["all", "missing", "queue", "authors"].includes(view)) controls.seriesView = view;
     if (params.has("hideComplete")) controls.hideCompletedSeries = params.get("hideComplete") === "1";
@@ -114,6 +118,7 @@ function writeUrlControls(controls) {
   const params = new URLSearchParams();
   if (controls.statusFilter !== defaults.statusFilter) params.set("status", controls.statusFilter);
   if (controls.platformFilter !== defaults.platformFilter) params.set("platform", controls.platformFilter);
+  if (controls.platformFocus !== defaults.platformFocus) params.set("focus", controls.platformFocus);
   if (controls.seriesSort !== defaults.seriesSort) params.set("sort", controls.seriesSort);
   if (controls.searchQuery.trim()) params.set("q", controls.searchQuery.trim());
   if (controls.seriesView !== defaults.seriesView) params.set("view", controls.seriesView);
@@ -306,21 +311,39 @@ function seriesStateCountsFor(series = []) {
 
 function platformStatsFor(series = [], platforms = []) {
   const counts = Object.fromEntries(platforms.map((platform) => [platform.id, 0]));
+  let missing = 0;
+  let audio = 0;
   for (const book of series.flatMap((item) => item.books || [])) {
+    if (!(book.platforms || []).length) missing += 1;
+    if ((book.platforms || []).some((platformId) => AUDIO_PLATFORM_IDS.has(platformId))) audio += 1;
     for (const platformId of book.platforms || []) {
       counts[platformId] = (counts[platformId] || 0) + 1;
     }
   }
-  return platforms.map((platform) => ({
-    ...platform,
-    count: counts[platform.id] || 0,
-  }));
+  return {
+    platforms: platforms.map((platform) => ({
+      ...platform,
+      count: counts[platform.id] || 0,
+    })),
+    audio,
+    missing,
+  };
 }
 
 function nextMissingBookFor(series) {
+  return nextMissingBooksFor(series, 1)[0] || null;
+}
+
+function orderSortValue(order) {
+  const value = Number.parseFloat(String(order).replace(/[^0-9.].*$/, ""));
+  return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+}
+
+function nextMissingBooksFor(series, limit = 3) {
   return [...(series.allBooks || series.books || [])]
     .filter((book) => book.status === "unowned")
-    .sort((a, b) => (a.order || 0) - (b.order || 0))[0] || null;
+    .sort((a, b) => orderSortValue(a.order) - orderSortValue(b.order))
+    .slice(0, limit);
 }
 
 function visibleBooksFor(series = []) {
@@ -429,6 +452,67 @@ function platformLabelsFor(book, platforms) {
   return labels.length ? labels : ["Not owned"];
 }
 
+function platformFocusLabel(platformFocus, platforms) {
+  if (platformFocus === "all") return "All platforms";
+  if (platformFocus === "audio") return "Owned audio";
+  if (platformFocus === "missing") return "Missing";
+  return platforms[platformFocus]?.label || platformFocus;
+}
+
+function platformFocusMatches(book, platformFocus) {
+  if (platformFocus === "all") return true;
+  if (platformFocus === "audio") return (book.platforms || []).some((platformId) => AUDIO_PLATFORM_IDS.has(platformId));
+  if (platformFocus === "missing") return !(book.platforms || []).length;
+  return (book.platforms || []).includes(platformFocus);
+}
+
+function platformFocusCountFor(series, platformFocus) {
+  return (series.allBooks || series.books || []).filter((book) => platformFocusMatches(book, platformFocus)).length;
+}
+
+function seriesHasPlatform(series, platformId) {
+  if (platformId === "audio") {
+    return (series.books || []).some((book) => (book.platforms || []).some((id) => AUDIO_PLATFORM_IDS.has(id)));
+  }
+  return (series.books || []).some((book) => (book.platforms || []).includes(platformId));
+}
+
+function platformFilterMatches(book, series, platformId) {
+  if (platformId === "all") return true;
+  if (platformFocusMatches(book, platformId)) return true;
+  return book.status === "unowned" && seriesHasPlatform(series, platformId);
+}
+
+function platformFocusOptions(platforms = []) {
+  return [
+    { id: "all", label: "All platforms", color: "#64748b" },
+    { id: "audio", label: "Owned audio", color: "#14b8a6" },
+    ...platforms,
+    { id: "missing", label: "Missing", color: "#fb7185" },
+  ];
+}
+
+function priorityMissingBooksFor(series = [], limit = 5) {
+  const priorityRank = { High: 0, Medium: 1, Low: 2 };
+  return series
+    .map((item, index) => {
+      const next = nextMissingBookFor({ ...item, allBooks: item.books || [] });
+      if (!next) return null;
+      return {
+        ...next,
+        seriesId: item.id,
+        seriesTitle: item.title,
+        seriesAuthor: item.author,
+        seriesPriority: item.priority || "",
+        sortRank: priorityRank[item.priority] ?? 3,
+        sortIndex: index,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.sortRank - b.sortRank || a.sortIndex - b.sortIndex)
+    .slice(0, limit);
+}
+
 function bookMetadataFor(book) {
   return book.releaseDate || book.publicationDate || book.year || book.publicationYear || "";
 }
@@ -476,6 +560,7 @@ function App() {
   const initialControls = useMemo(() => readStoredControls(), []);
   const [statusFilter, setStatusFilter] = useState(initialControls.statusFilter);
   const [platformFilter, setPlatformFilter] = useState(initialControls.platformFilter);
+  const [platformFocus, setPlatformFocus] = useState(initialControls.platformFocus);
   const [seriesSort, setSeriesSort] = useState(initialControls.seriesSort);
   const [searchQuery, setSearchQuery] = useState(initialControls.searchQuery);
   const [seriesView, setSeriesView] = useState(initialControls.seriesView);
@@ -487,16 +572,19 @@ function App() {
   const restoredHash = useRef(false);
 
   useEffect(() => {
-    if ((library.platforms || []).length && platformFilter !== "all" && !platforms[platformFilter]) {
+    if ((library.platforms || []).length && !["all", "audio"].includes(platformFilter) && !platforms[platformFilter]) {
       setPlatformFilter("all");
     }
-  }, [library.platforms, platformFilter, platforms]);
+    if ((library.platforms || []).length && !["all", "audio", "missing"].includes(platformFocus) && !platforms[platformFocus]) {
+      setPlatformFocus("all");
+    }
+  }, [library.platforms, platformFilter, platformFocus, platforms]);
 
   useEffect(() => {
-    const controls = { statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries, density };
+    const controls = { statusFilter, platformFilter, platformFocus, seriesSort, searchQuery, seriesView, hideCompletedSeries, density };
     writeStoredControls(controls);
     writeUrlControls(controls);
-  }, [density, hideCompletedSeries, platformFilter, searchQuery, seriesSort, seriesView, statusFilter]);
+  }, [density, hideCompletedSeries, platformFilter, platformFocus, searchQuery, seriesSort, seriesView, statusFilter]);
 
   const filteredSeries = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -506,7 +594,7 @@ function App() {
       baseBooks: (series.books || []).filter((book) => {
         if (statusFilter !== "all" && book.status !== statusFilter) return false;
         if (seriesView === "queue" && !["queued", "reading"].includes(book.status)) return false;
-        if (platformFilter !== "all" && !(book.platforms || []).includes(platformFilter)) return false;
+        if (!platformFilterMatches(book, series, platformFilter)) return false;
         return true;
       }),
     })).map(({ series, index, baseBooks }) => {
@@ -544,6 +632,9 @@ function App() {
   const totalStats = statsFor(library.series || []);
   const stateCounts = seriesStateCountsFor(library.series || []);
   const platformStats = platformStatsFor(library.series || [], library.platforms || []);
+  const platformOptions = platformFocusOptions(library.platforms || []);
+  const activePlatformLabel = platformFocusLabel(platformFocus, platforms);
+  const nextUnreadBooks = priorityMissingBooksFor(library.series || []);
   const authorGroups = authorGroupsFor(filteredSeries);
   const diagnostics = diagnosticsFor(library);
   const selected = selectedBook;
@@ -552,6 +643,7 @@ function App() {
   const resetControls = () => {
     setStatusFilter(CONTROL_DEFAULTS.statusFilter);
     setPlatformFilter(CONTROL_DEFAULTS.platformFilter);
+    setPlatformFocus(CONTROL_DEFAULTS.platformFocus);
     setSeriesSort(CONTROL_DEFAULTS.seriesSort);
     setSearchQuery(CONTROL_DEFAULTS.searchQuery);
     setSeriesView(CONTROL_DEFAULTS.seriesView);
@@ -573,7 +665,7 @@ function App() {
     if (hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
   };
   const copyShareLink = () => {
-    writeUrlControls({ statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries, density });
+    writeUrlControls({ statusFilter, platformFilter, platformFocus, seriesSort, searchQuery, seriesView, hideCompletedSeries, density });
     copyText(window.location.href).then(() => setActionMessage("Share link copied")).catch(() => setActionMessage("Copy failed"));
   };
   const copyMissingList = () => {
@@ -624,12 +716,62 @@ function App() {
       </section>
 
       <section className="platform-strip" aria-label="Platform summary" data-platform-summary>
-        {platformStats.map((platform) => (
-          <article key={platform.id} style={{ "--platform-color": platform.color || "#64748b" }}>
+        <button
+          type="button"
+          className={platformFocus === "audio" ? "active" : ""}
+          style={{ "--platform-color": "#14b8a6" }}
+          onClick={() => setPlatformFocus(platformFocus === "audio" ? "all" : "audio")}
+          aria-pressed={platformFocus === "audio"}
+          data-platform-focus="audio"
+        >
+          <span aria-hidden="true" />
+          <strong>Owned audio</strong>
+          <em>{platformStats.audio}</em>
+        </button>
+        {platformStats.platforms.map((platform) => (
+          <button
+            key={platform.id}
+            type="button"
+            className={platformFocus === platform.id ? "active" : ""}
+            style={{ "--platform-color": platform.color || "#64748b" }}
+            onClick={() => setPlatformFocus(platformFocus === platform.id ? "all" : platform.id)}
+            aria-pressed={platformFocus === platform.id}
+            data-platform-focus={platform.id}
+          >
             <span aria-hidden="true" />
             <strong>{platform.label}</strong>
             <em>{platform.count}</em>
-          </article>
+          </button>
+        ))}
+        <button
+          type="button"
+          className={platformFocus === "missing" ? "active" : ""}
+          style={{ "--platform-color": "var(--red)" }}
+          onClick={() => setPlatformFocus(platformFocus === "missing" ? "all" : "missing")}
+          aria-pressed={platformFocus === "missing"}
+          data-platform-focus="missing"
+        >
+          <span aria-hidden="true" />
+          <strong>Missing</strong>
+          <em>{platformStats.missing}</em>
+        </button>
+      </section>
+
+      <section className="next-unread-strip" aria-label="Next unread books" data-next-unread-strip>
+        <div>
+          <span className="eyebrow">Next unread</span>
+          <strong>{totalStats.unowned} missing titles</strong>
+        </div>
+        {nextUnreadBooks.map((book) => (
+          <button
+            key={`${book.seriesId}-${book.order}`}
+            type="button"
+            onClick={() => jumpToSeries(book.seriesId)}
+            data-next-unread
+          >
+            <b>{book.seriesTitle}</b>
+            <span>#{book.order} {book.title}</span>
+          </button>
         ))}
       </section>
 
@@ -708,8 +850,24 @@ function App() {
             Titles
           </button>
         </div>
-        <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} aria-label="Filter by platform">
+        <select
+          value={platformFocus}
+          onChange={(event) => setPlatformFocus(event.target.value)}
+          aria-label="Highlight platform"
+          data-platform-focus-select
+        >
+          {platformOptions.map((platform) => (
+            <option key={platform.id} value={platform.id}>Highlight {platform.label}</option>
+          ))}
+        </select>
+        <select
+          value={platformFilter}
+          onChange={(event) => setPlatformFilter(event.target.value)}
+          aria-label="Filter by platform"
+          data-platform-filter
+        >
           <option value="all">All platforms</option>
+          <option value="audio">Owned audio + gaps</option>
           {(library.platforms || []).map((platform) => (
             <option key={platform.id} value={platform.id}>{platform.label}</option>
           ))}
@@ -739,6 +897,7 @@ function App() {
         <span>Source: {source}</span>
         <span>{library.updatedAt ? `Updated ${library.updatedAt}` : "Draft data"}</span>
         <span>{visibleStats.books} visible</span>
+        <span data-platform-focus-label>Focus: {activePlatformLabel}</span>
         <a href={sourceMeta.url || DATA_WEB_URL} target="_blank" rel="noreferrer" data-source-sha>
           Data {sourceMeta.sha ? sourceMeta.sha.slice(0, 7) : "source"}
         </a>
@@ -781,6 +940,7 @@ function App() {
                   platforms={platforms}
                   selected={selected}
                   collapsed={collapsedSeries.has(series.id)}
+                  platformFocus={platformFocus}
                   onToggleCollapsed={toggleCollapsedSeries}
                   onSelect={selectBook}
                 />
@@ -793,6 +953,7 @@ function App() {
               platforms={platforms}
               selected={selected}
               collapsed={collapsedSeries.has(series.id)}
+              platformFocus={platformFocus}
               onToggleCollapsed={toggleCollapsedSeries}
               onSelect={selectBook}
             />
@@ -838,10 +999,12 @@ function StateStat({ label, value, tone }) {
   );
 }
 
-function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, onSelect }) {
+function SeriesRow({ series, platforms, selected, collapsed, platformFocus, onToggleCollapsed, onSelect }) {
   const stats = statsFor([series]);
   const state = seriesStateFor(stats);
-  const nextMissing = nextMissingBookFor(series);
+  const nextMissing = nextMissingBooksFor(series);
+  const focusCount = platformFocusCountFor(series, platformFocus);
+  const focusLabel = platformFocusLabel(platformFocus, platforms);
   const progressStyle = { width: `${stats.progress}%` };
 
   return (
@@ -850,6 +1013,7 @@ function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, 
       style={{ "--series-accent": series.accent || "#38bdf8" }}
       data-series-id={series.id}
       data-series-state={state.tone}
+      data-platform-focus-count={focusCount}
     >
       <header>
         <div>
@@ -861,10 +1025,10 @@ function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, 
               {[series.priority, series.note].filter(Boolean).join(" · ")}
             </p>
           ) : null}
-          {nextMissing ? (
+          {nextMissing.length ? (
             <p className="next-missing" data-next-missing>
               <b>Next missing</b>
-              <span>#{nextMissing.order} {nextMissing.title}</span>
+              <span>{nextMissing.map((book) => `#${book.order} ${book.title}`).join(" · ")}</span>
             </p>
           ) : null}
         </div>
@@ -876,6 +1040,7 @@ function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, 
           <b>{state.label}</b>
           <em>{state.detail}</em>
           <strong>{stats.read}/{stats.books}</strong>
+          {platformFocus !== "all" ? <em data-platform-focus-row>{focusCount} {focusLabel}</em> : null}
           <span><i style={progressStyle} /></span>
           <button
             type="button"
@@ -904,6 +1069,7 @@ function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, 
               seriesPriority: series.priority,
             }}
             platforms={platforms}
+            platformFocus={platformFocus}
             active={selected?.title === book.title && selected?.order === book.order}
             onSelect={onSelect}
           />
@@ -915,9 +1081,11 @@ function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, 
   );
 }
 
-function BookCard({ book, platforms, active, onSelect }) {
+function BookCard({ book, platforms, platformFocus, active, onSelect }) {
   const firstPlatform = platforms[(book.platforms || [])[0]];
-  const borderColor = firstPlatform?.color || "#475569";
+  const focusMatch = platformFocusMatches(book, platformFocus);
+  const focusPlatform = platformFocus === "missing" ? null : platforms[platformFocus];
+  const borderColor = focusMatch && focusPlatform ? focusPlatform.color : firstPlatform?.color || "#475569";
   const status = STATUS[book.status] || STATUS.unowned;
   const platformLabels = platformLabelsFor(book, platforms);
   const metadata = bookMetadataFor(book);
@@ -926,13 +1094,14 @@ function BookCard({ book, platforms, active, onSelect }) {
   return (
     <button
       type="button"
-      className={`book-card book-card--${book.status}${active ? " active" : ""}`}
+      className={`book-card book-card--${book.status}${active ? " active" : ""}${platformFocus !== "all" && focusMatch ? " platform-focused" : ""}${platformFocus !== "all" && !focusMatch ? " platform-muted" : ""}`}
       style={{ "--platform-color": borderColor }}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(book);
       }}
       data-book-card
+      data-platform-match={focusMatch ? "true" : "false"}
       aria-label={accessibleLabel}
       onKeyDown={(event) => {
         if (!["ArrowRight", "ArrowLeft"].includes(event.key)) return;
@@ -950,6 +1119,7 @@ function BookCard({ book, platforms, active, onSelect }) {
       <CoverFrame book={book} />
       <span className="book-title">{book.title}</span>
       {metadata ? <span className="book-meta">{metadata}</span> : null}
+      <span className="platform-labels">{platformLabels.join(" · ")}</span>
       <span className="platform-dots" aria-hidden="true">
         {(book.platforms || []).length ? book.platforms.map((platformId) => (
           <i key={platformId} style={{ backgroundColor: platforms[platformId]?.color || "#64748b" }} title={platforms[platformId]?.label || platformId} />

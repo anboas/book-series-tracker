@@ -4,6 +4,7 @@ export const fallbackLibrary = {
   source: "GitHub data unavailable",
   platforms: [
     { id: "audible", label: "Audible", color: "#f59e0b" },
+    { id: "audiobookshelf", label: "AudioBookshelf", color: "#38bdf8" },
   ],
   series: [],
 };

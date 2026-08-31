@@ -7,6 +7,9 @@ const EXPECTED_DATA = {
   books: 192,
   read: 169,
   missing: 23,
+  platforms: 2,
+  audible: 169,
+  audiobookshelf: 0,
 };
 
 function argValue(name) {
@@ -48,10 +51,18 @@ async function fetchGithubData() {
 
 function statsFor(library) {
   const books = (library.series || []).flatMap((series) => series.books || []);
+  const platformCounts = Object.fromEntries((library.platforms || []).map((platform) => [platform.id, 0]));
+  for (const book of books) {
+    for (const platformId of book.platforms || []) {
+      platformCounts[platformId] = (platformCounts[platformId] || 0) + 1;
+    }
+  }
   return {
     books: books.length,
     read: books.filter((book) => book.status === "read").length,
     missing: books.filter((book) => book.status === "unowned").length,
+    platforms: (library.platforms || []).length,
+    platformCounts,
   };
 }
 
@@ -129,6 +140,9 @@ assert.equal(data.updatedAt, argValue("--expect-updated-at") || EXPECTED_DATA.up
 assert.equal(stats.books, expectedValue("--expect-books", EXPECTED_DATA.books), "Data book count should match the expected snapshot");
 assert.equal(stats.read, expectedValue("--expect-read", EXPECTED_DATA.read), "Data read count should match the expected snapshot");
 assert.equal(stats.missing, expectedValue("--expect-missing", EXPECTED_DATA.missing), "Data missing count should match the expected snapshot");
+assert.equal(stats.platforms, expectedValue("--expect-platforms", EXPECTED_DATA.platforms), "Data platform count should match the expected snapshot");
+assert.equal(stats.platformCounts.audible || 0, expectedValue("--expect-audible", EXPECTED_DATA.audible), "Audible title count should match the expected snapshot");
+assert.equal(stats.platformCounts.audiobookshelf || 0, expectedValue("--expect-audiobookshelf", EXPECTED_DATA.audiobookshelf), "AudioBookshelf title count should match the expected snapshot");
 
 console.log(
   [
@@ -141,5 +155,8 @@ console.log(
     `books=${stats.books}`,
     `read=${stats.read}`,
     `missing=${stats.missing}`,
+    `platforms=${stats.platforms}`,
+    `audible=${stats.platformCounts.audible || 0}`,
+    `audiobookshelf=${stats.platformCounts.audiobookshelf || 0}`,
   ].join(" "),
 );
