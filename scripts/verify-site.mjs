@@ -38,12 +38,29 @@ try {
     assert.match(text, /SOURCE: GITHUB/);
     assert.match(text, /He Who Fights with Monsters/);
     assert.match(text, /Dungeon Crawler Carl/);
+    assert.match(text, /Carl's Doomsday Scenario/);
+    assert.match(text, /This Inevitable Ruin/);
     assert.match(text, /Defiance of the Fall/);
     assert.match(text, /The Wheel of Time/);
     assert.match(text, /Arcane Ascension/);
     assert.doesNotMatch(text, /The Land/);
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
-    assert.ok(await page.locator("[data-book-card]").count() >= 180, "should render the Audible title cards and derived gaps");
+    assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
+    assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').count(), 7, "Dungeon Crawler Carl should render the full seven-book main series");
+    await page.locator('[data-series-id="dungeon-crawler-carl"]').scrollIntoViewIfNeeded();
+    const dccCoverStates = await page.locator('[data-series-id="dungeon-crawler-carl"] img').evaluateAll(async (images) => {
+      await Promise.all(images.map((image) => {
+        if (image.complete) return undefined;
+        return new Promise((resolve) => {
+          image.addEventListener("load", resolve, { once: true });
+          image.addEventListener("error", resolve, { once: true });
+          setTimeout(resolve, 5000);
+        });
+      }));
+      return images.map((image) => ({ hidden: image.hidden, naturalWidth: image.naturalWidth }));
+    });
+    assert.equal(dccCoverStates.length, 7, "Dungeon Crawler Carl should have cover images for every book");
+    assert.ok(dccCoverStates.every((image) => !image.hidden && image.naturalWidth > 0), "Dungeon Crawler Carl covers should load");
     assert.equal(await page.locator("[data-book-detail]").count(), 1, "should render selected book detail");
     const scrollableRails = await page.locator("[data-book-rail]").evaluateAll((rails) => (
       rails.filter((rail) => rail.scrollWidth > rail.clientWidth + 4).length

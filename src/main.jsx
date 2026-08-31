@@ -4,6 +4,8 @@ import { fallbackLibrary } from "./fallbackLibrary.js";
 import "./styles.css";
 
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
+const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
+const coverResolutionCache = new Map();
 const STATUS = {
   all: { label: "All", tone: "neutral" },
   owned: { label: "Owned", tone: "blue" },
@@ -19,11 +21,7 @@ function useLibrary() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${DATA_URL}?cache=${Date.now()}`, { headers: { accept: "application/json" } })
-      .then((response) => {
-        if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
-        return response.json();
-      })
+    fetchGithubData()
       .then((data) => {
         if (!cancelled) {
           setLibrary(data);
@@ -41,8 +39,65 @@ function useLibrary() {
   return { library, source };
 }
 
+async function fetchGithubData() {
+  try {
+    const response = await fetch(`${GITHUB_API_DATA_URL}&cache=${Date.now()}`, {
+      cache: "no-store",
+      headers: { accept: "application/vnd.github.raw+json" },
+    });
+    if (!response.ok) throw new Error(`GitHub API returned ${response.status}`);
+    const text = await response.text();
+    const parsed = JSON.parse(text);
+    if (parsed?.content) {
+      const compact = parsed.content.replace(/\s/g, "");
+      const binary = atob(compact);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    }
+    return parsed;
+  } catch {
+    const response = await fetch(`${DATA_URL}?cache=${Date.now()}`, {
+      cache: "no-store",
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`GitHub Raw returned ${response.status}`);
+    return response.json();
+  }
+}
+
 function platformMap(platforms = []) {
   return Object.fromEntries(platforms.map((platform) => [platform.id, platform]));
+}
+
+function coverUrlFromId(coverId) {
+  return `https://covers.openlibrary.org/b/id/${coverId}-L.jpg?default=false`;
+}
+
+async function resolveCoverUrl(book) {
+  const key = `${book.title}::${book.author || ""}`;
+  if (coverResolutionCache.has(key)) return coverResolutionCache.get(key);
+
+  const promise = fetch(`https://openlibrary.org/search.json?${new URLSearchParams({
+    title: book.title,
+    author: book.author || "",
+    limit: "5",
+    fields: "title,author_name,cover_i",
+  })}`, {
+    cache: "force-cache",
+    headers: { accept: "application/json" },
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error(`Open Library returned ${response.status}`);
+      return response.json();
+    })
+    .then((data) => {
+      const match = (data.docs || []).find((item) => item.cover_i);
+      return match?.cover_i ? coverUrlFromId(match.cover_i) : null;
+    })
+    .catch(() => null);
+
+  coverResolutionCache.set(key, promise);
+  return promise;
 }
 
 function statsFor(series = []) {
@@ -217,16 +272,7 @@ function BookCard({ book, platforms, active, onSelect }) {
       <span className="book-order">#{book.order}</span>
       <span className="cover-frame" aria-hidden="true">
         <span className="cover-title">{book.title}</span>
-        {book.coverUrl ? (
-          <img
-            src={book.coverUrl}
-            alt=""
-            loading="lazy"
-            onError={(event) => {
-              event.currentTarget.hidden = true;
-            }}
-          />
-        ) : null}
+        <BookCoverImage book={book} />
       </span>
       <span className="book-title">{book.title}</span>
       <span className="platform-dots" aria-label="Platforms">
@@ -238,6 +284,36 @@ function BookCard({ book, platforms, active, onSelect }) {
   );
 }
 
+function BookCoverImage({ book, className = "" }) {
+  const [src, setSrc] = useState(book.coverUrl || "");
+  const [hidden, setHidden] = useState(!book.coverUrl);
+
+  useEffect(() => {
+    setSrc(book.coverUrl || "");
+    setHidden(!book.coverUrl);
+  }, [book.coverUrl]);
+
+  if (!src || hidden) return null;
+
+  return (
+    <img
+      className={className}
+      src={src}
+      alt=""
+      loading="lazy"
+      onError={() => {
+        resolveCoverUrl(book).then((nextSrc) => {
+          if (nextSrc && nextSrc !== src) {
+            setSrc(nextSrc);
+          } else {
+            setHidden(true);
+          }
+        });
+      }}
+    />
+  );
+}
+
 function BookDetail({ book, platforms }) {
   const ownedPlatforms = (book.platforms || []).map((platformId) => platforms[platformId]).filter(Boolean);
   const status = STATUS[book.status] || STATUS.unowned;
@@ -246,16 +322,7 @@ function BookDetail({ book, platforms }) {
     <>
       <span className="detail-cover-frame" aria-hidden="true">
         <span className="cover-title">{book.title}</span>
-        {book.coverUrl ? (
-          <img
-            className="detail-cover"
-            src={book.coverUrl}
-            alt=""
-            onError={(event) => {
-              event.currentTarget.hidden = true;
-            }}
-          />
-        ) : null}
+        <BookCoverImage book={book} className="detail-cover" />
       </span>
       <div className="detail-copy">
         <span className={`status-pill status-pill--${status.tone}`}>{status.label}</span>
