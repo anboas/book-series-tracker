@@ -6,6 +6,7 @@ import "./styles.css";
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
 const STATUS = {
   all: { label: "All", tone: "neutral" },
+  owned: { label: "Owned", tone: "blue" },
   read: { label: "Read", tone: "green" },
   reading: { label: "Reading", tone: "blue" },
   queued: { label: "Queued", tone: "amber" },
@@ -47,16 +48,20 @@ function platformMap(platforms = []) {
 function statsFor(series = []) {
   const books = series.flatMap((item) => item.books || []);
   const read = books.filter((book) => book.status === "read").length;
+  const owned = books.filter((book) => book.status === "owned").length;
   const reading = books.filter((book) => book.status === "reading").length;
   const queued = books.filter((book) => book.status === "queued").length;
   const unowned = books.filter((book) => book.status === "unowned").length;
+  const tracked = books.length - unowned;
   return {
     books: books.length,
+    owned,
     read,
     reading,
     queued,
     unowned,
-    progress: books.length ? Math.round((read / books.length) * 100) : 0,
+    tracked,
+    progress: books.length ? Math.round((tracked / books.length) * 100) : 0,
   };
 }
 
@@ -92,10 +97,10 @@ function App() {
         </div>
         <div className="summary-strip" aria-label="Library summary">
           <Stat label="Books" value={totalStats.books} />
-          <Stat label="Read" value={totalStats.read} />
+          <Stat label="Owned" value={totalStats.owned + totalStats.read} />
           <Stat label="Queued" value={totalStats.queued + totalStats.reading} />
           <Stat label="Missing" value={totalStats.unowned} />
-          <Stat label="Progress" value={`${totalStats.progress}%`} />
+          <Stat label="Coverage" value={`${totalStats.progress}%`} />
         </div>
       </header>
 
@@ -174,7 +179,7 @@ function SeriesRow({ series, platforms, selected, onSelect }) {
           <p>{series.summary}</p>
         </div>
         <div className="series-meter" aria-label={`${series.title} progress`}>
-          <strong>{stats.read}/{stats.books}</strong>
+          <strong>{stats.tracked}/{stats.books}</strong>
           <span><i style={progressStyle} /></span>
         </div>
       </header>

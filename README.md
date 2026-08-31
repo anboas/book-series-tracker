@@ -1,6 +1,6 @@
 # Book Series Tracker
 
-Dark, responsive reading tracker for series progress, ownership platform, and unread gaps.
+Dark, responsive reading tracker for series ownership coverage, platform source, and unread/missing gaps.
 
 The app fetches public data from:
 
