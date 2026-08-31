@@ -1168,23 +1168,21 @@ function SeriesRow({ series, platforms, selected, collapsed, platformFocus, onTo
         <div>
           <span>{series.author}</span>
           <h2>{series.title}</h2>
-          <div className="series-badges" aria-label={`${series.title} reading summary`} data-series-badges>
+          <p className="series-meta-line" aria-label={`${series.title} reading summary`} data-series-badges>
             <b className="series-badge series-badge--green">{stats.read} read</b>
             {stats.unowned ? <b className="series-badge series-badge--red">{stats.unowned} missing</b> : <b className="series-badge series-badge--green">Read all</b>}
             {stats.books ? <b className="series-badge">{stats.books} total</b> : null}
-          </div>
-          <p>{series.summary}</p>
-          {series.priority || series.note ? (
-            <p className="series-note" data-series-note>
-              {[series.priority, series.note].filter(Boolean).join(" · ")}
-            </p>
-          ) : null}
-          {nextMissing.length ? (
-            <p className="next-missing" data-next-missing>
-              <b>Next missing</b>
-              <span>{nextMissing.map((book) => `#${book.order} ${book.title}`).join(" · ")}</span>
-            </p>
-          ) : null}
+            {nextMissing.length ? (
+              <span className="next-missing" data-next-missing>
+                <b>Next</b> {nextMissing.map((book) => `#${book.order} ${book.title}`).join(" · ")}
+              </span>
+            ) : null}
+            {series.priority || series.note ? (
+              <span className="series-note" data-series-note>
+                {[series.priority, series.note].filter(Boolean).join(" · ")}
+              </span>
+            ) : null}
+          </p>
         </div>
         <div
           className="series-meter"
