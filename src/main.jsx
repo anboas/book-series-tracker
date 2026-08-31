@@ -697,6 +697,41 @@ function App() {
       document.activeElement.blur();
     }
   };
+  const setPrimaryLens = (lens) => {
+    setSearchQuery("");
+    setHideCompletedSeries(false);
+    if (lens === "all") {
+      setStatusFilter("all");
+      setPlatformFilter("all");
+      setPlatformFocus("all");
+      setSeriesView("all");
+    }
+    if (lens === "audio") {
+      setStatusFilter("all");
+      setPlatformFilter("audio");
+      setPlatformFocus("audio");
+      setSeriesView("all");
+    }
+    if (lens === "unread") {
+      setStatusFilter("unowned");
+      setPlatformFilter("all");
+      setPlatformFocus("missing");
+      setSeriesView("missing");
+    }
+    if (lens === "next") {
+      setStatusFilter("all");
+      setPlatformFilter("audio");
+      setPlatformFocus("missing");
+      setSeriesView("next");
+    }
+  };
+  const activeLens = (() => {
+    if (seriesView === "next") return "next";
+    if (statusFilter === "unowned" && seriesView === "missing") return "unread";
+    if (platformFilter === "audio" && platformFocus === "audio") return "audio";
+    if (statusFilter === "all" && platformFilter === "all" && platformFocus === "all" && seriesView === "all") return "all";
+    return "";
+  })();
 
   useEffect(() => {
     if (restoredHash.current || !(library.series || []).length) return;
@@ -801,6 +836,25 @@ function App() {
             <span>#{book.order} {book.title}</span>
           </button>
         ))}
+      </section>
+
+      <section className="primary-lens-bar" aria-label="Primary reading lenses" data-primary-lens-bar>
+        <button type="button" className={activeLens === "all" ? "active" : ""} onClick={() => setPrimaryLens("all")} data-primary-lens="all">
+          <b>All</b>
+          <span>{totalStats.books}</span>
+        </button>
+        <button type="button" className={activeLens === "audio" ? "active" : ""} onClick={() => setPrimaryLens("audio")} data-primary-lens="audio">
+          <b>Owned audio</b>
+          <span>{platformStats.audio}</span>
+        </button>
+        <button type="button" className={activeLens === "unread" ? "active" : ""} onClick={() => setPrimaryLens("unread")} data-primary-lens="unread">
+          <b>Unread</b>
+          <span>{totalStats.unowned}</span>
+        </button>
+        <button type="button" className={activeLens === "next" ? "active" : ""} onClick={() => setPrimaryLens("next")} data-primary-lens="next">
+          <b>Next up</b>
+          <span>{nextUnreadBooks.length}</span>
+        </button>
       </section>
 
       <section className="control-bar" aria-label="Library controls">
@@ -998,11 +1052,14 @@ function App() {
             />
           )) : (
             <div className="empty-row" data-empty-view>
-              {seriesView === "queue"
-                ? "No queued or currently reading books in this view."
-                : seriesView === "next"
-                  ? "No next unread books match this view."
-                  : "No visible series match this view."}
+              <span>
+                {seriesView === "queue"
+                  ? "No queued or currently reading books in this view."
+                  : seriesView === "next"
+                    ? "No next unread books match this view."
+                    : "No visible series match this view."}
+              </span>
+              <button type="button" onClick={resetControls} data-empty-reset>Reset filters</button>
             </div>
           )}
         </section>

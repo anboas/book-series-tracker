@@ -48,6 +48,7 @@ button {
 .series-state-strip,
 .platform-strip,
 .next-unread-strip,
+.primary-lens-bar,
 .control-bar,
 .source-row,
 .status-distribution,
@@ -243,6 +244,47 @@ button {
   line-height: 1.2;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.primary-lens-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.primary-lens-bar button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(16, 21, 34, 0.88);
+  color: var(--text);
+}
+
+.primary-lens-bar button.active,
+.primary-lens-bar button:hover {
+  border-color: var(--blue);
+  background: #102338;
+}
+
+.primary-lens-bar b,
+.primary-lens-bar span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primary-lens-bar span {
+  color: var(--muted);
 }
 
 .brand-block {
@@ -1098,6 +1140,8 @@ h1 {
 
 .empty-detail,
 .empty-row {
+  display: grid;
+  gap: 10px;
   padding: 18px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
@@ -1105,6 +1149,18 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   font-weight: 750;
+}
+
+.empty-row button {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .library-app[data-density="compact"] .book-rail {
@@ -1283,13 +1339,29 @@ h1 {
     font-size: 14px;
   }
 
+  .primary-lens-bar {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    gap: 6px;
+    padding: 6px 0;
+    background: rgba(8, 10, 18, 0.96);
+  }
+
+  .primary-lens-bar button {
+    min-height: 40px;
+    padding: 0 8px;
+  }
+
+  .primary-lens-bar b,
+  .primary-lens-bar span {
+    font-size: 10px;
+  }
+
   .control-bar {
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 8px;
-    position: sticky;
-    top: 0;
-    z-index: 4;
   }
 
   .search-control,

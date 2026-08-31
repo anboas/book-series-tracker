@@ -77,6 +77,7 @@ try {
     assert.match(platformSummary, /Missing\s+32/i, "platform summary should count missing titles");
     assert.match(await page.locator("[data-next-unread-strip]").innerText(), /32 missing titles/i, "next unread strip should summarize unread gaps");
     assert.match(await page.locator("[data-next-unread-strip]").innerText(), /He Who Fights with Monsters[\s\S]*#6 He Who Fights with Monsters 6/i, "next unread strip should surface priority gaps");
+    assert.match(await page.locator("[data-primary-lens-bar]").innerText(), /All[\s\S]*201[\s\S]*Owned audio[\s\S]*169[\s\S]*Unread[\s\S]*32[\s\S]*Next up[\s\S]*5/i, "primary lens bar should summarize core reading modes");
     const dccBadges = await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-badges]').innerText();
     assert.match(dccBadges, /1 read/i, "series header should show read count badge");
     assert.match(dccBadges, /6 missing/i, "series header should show missing count badge");
@@ -109,6 +110,16 @@ try {
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').count(), 1, "next-up view should show only the next missing DCC book");
     assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').innerText(), /Carl's Doomsday Scenario/i, "next-up view should show the next unread DCC title");
     await page.locator("[data-next-up-view-toggle]").click();
+    await page.locator('[data-primary-lens="audio"]').click();
+    assert.equal(await page.locator("[data-platform-filter]").inputValue(), "audio", "Owned audio lens should set the audio platform filter");
+    assert.equal(await page.locator("[data-platform-focus-select]").inputValue(), "audio", "Owned audio lens should highlight owned audio");
+    await page.locator('[data-primary-lens="next"]').click();
+    assert.equal(await page.locator("[data-platform-filter]").inputValue(), "audio", "Next up lens should stay scoped to audio-owned series");
+    assert.match(page.url(), /view=next/, "Next up lens should be shareable");
+    await page.locator("[data-library-search]").fill("definitely-no-series-here");
+    assert.match(await page.locator("[data-empty-view]").innerText(), /No next unread books match this view[\s\S]*Reset filters/i, "empty state should explain the active view and offer reset");
+    await page.locator("[data-empty-reset]").click();
+    assert.equal(await page.locator("[data-library-search]").inputValue(), "", "empty reset should clear search");
     await page.locator("[data-queue-view-toggle]").click();
     assert.equal(await page.locator("[data-series-stack] > article").count(), 0, "queue view should hide rows when no books are queued");
     assert.match(await page.locator("[data-empty-view]").innerText(), /No queued or currently reading books/i);
