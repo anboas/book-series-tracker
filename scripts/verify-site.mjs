@@ -45,6 +45,7 @@ try {
     await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
     const text = await page.locator("[data-book-series-app]").innerText();
     assert.match(text, /Book Series Tracker/);
+    assert.equal(await page.locator('link[rel="manifest"]').getAttribute("href"), "/manifest.webmanifest", "PWA manifest should be linked");
     assert.match(text, /SOURCE: GITHUB/);
     assert.match(text, /169\s+READ/);
     assert.doesNotMatch(text, /169\s+OWNED/);
@@ -146,6 +147,43 @@ try {
     assert.ok(overflow <= 2, `viewport ${viewport.width} overflow ${overflow}`);
     await page.close();
   }
+
+  const offlinePage = await browser.newPage({ viewport: { width: 900, height: 800 } });
+  await offlinePage.route("https://api.github.com/repos/anboas/reading-list-data/**", (route) => route.abort());
+  await offlinePage.route("https://raw.githubusercontent.com/anboas/reading-list-data/**", (route) => route.abort());
+  await offlinePage.goto(BASE_URL, { waitUntil: "domcontentloaded" });
+  await offlinePage.evaluate(() => {
+    localStorage.setItem("book-series-tracker:library", JSON.stringify({
+      cachedAt: "2026-08-31T12:00:00.000Z",
+      library: {
+        updatedAt: "cache-test",
+        platforms: [{ id: "cache", label: "Cache", color: "#38bdf8" }],
+        series: [{
+          id: "cache-test-series",
+          title: "Cache Test Series",
+          author: "Verifier",
+          accent: "#38bdf8",
+          summary: "Cached fallback test.",
+          books: [{
+            order: 1,
+            title: "Cached Book",
+            author: "Verifier",
+            status: "read",
+            platforms: ["cache"],
+            source: "Verifier fixture",
+          }],
+        }],
+      },
+    }));
+  });
+  await offlinePage.reload({ waitUntil: "domcontentloaded" });
+  await offlinePage.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("CACHED GITHUB"));
+  const offlineText = await offlinePage.locator("[data-book-series-app]").innerText();
+  assert.match(offlineText, /Source: Cached GitHub 2026-08-31/i, "offline load should use cached GitHub data");
+  assert.match(offlineText, /Cache Test Series/);
+  assert.match(offlineText, /1\s+visible/i);
+  await offlinePage.close();
+
   console.log("Verified Book Series Tracker desktop/mobile.");
 } finally {
   await browser.close();

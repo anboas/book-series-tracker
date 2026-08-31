@@ -6,6 +6,7 @@ import "./styles.css";
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
 const CONTROL_STORAGE_KEY = "book-series-tracker:controls";
+const LIBRARY_CACHE_KEY = "book-series-tracker:library";
 const coverResolutionCache = new Map();
 const STATUS = {
   all: { label: "All", tone: "neutral" },
@@ -91,6 +92,27 @@ function writeStoredControls(controls) {
   }
 }
 
+function readCachedLibrary() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(LIBRARY_CACHE_KEY) || "{}");
+    if (!cached?.library?.series?.length) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedLibrary(library) {
+  try {
+    localStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify({
+      cachedAt: new Date().toISOString(),
+      library,
+    }));
+  } catch {
+    // Cache is opportunistic; live data remains the source of truth.
+  }
+}
+
 function useLibrary() {
   const [library, setLibrary] = useState(fallbackLibrary);
   const [source, setSource] = useState("Bundled draft");
@@ -102,10 +124,19 @@ function useLibrary() {
         if (!cancelled) {
           setLibrary(data);
           setSource("GitHub");
+          writeCachedLibrary(data);
         }
       })
       .catch(() => {
-        if (!cancelled) setSource("Bundled draft");
+        if (!cancelled) {
+          const cached = readCachedLibrary();
+          if (cached) {
+            setLibrary(cached.library);
+            setSource(`Cached GitHub${cached.cachedAt ? ` ${cached.cachedAt.slice(0, 10)}` : ""}`);
+          } else {
+            setSource("Bundled draft");
+          }
+        }
       });
     return () => {
       cancelled = true;

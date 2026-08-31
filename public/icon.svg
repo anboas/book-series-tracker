@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Book Series Tracker">
+  <rect width="512" height="512" rx="96" fill="#080a12"/>
+  <rect x="80" y="116" width="352" height="72" rx="18" fill="#101522" stroke="#38bdf8" stroke-width="12"/>
+  <rect x="80" y="220" width="352" height="72" rx="18" fill="#101522" stroke="#34d399" stroke-width="12"/>
+  <rect x="80" y="324" width="352" height="72" rx="18" fill="#101522" stroke="#fb7185" stroke-width="12"/>
+  <rect x="112" y="140" width="48" height="24" rx="12" fill="#38bdf8"/>
+  <rect x="112" y="244" width="48" height="24" rx="12" fill="#34d399"/>
+  <rect x="112" y="348" width="48" height="24" rx="12" fill="#fb7185"/>
+  <rect x="184" y="140" width="184" height="24" rx="12" fill="#f8fafc"/>
+  <rect x="184" y="244" width="236" height="24" rx="12" fill="#f8fafc"/>
+  <rect x="184" y="348" width="148" height="24" rx="12" fill="#f8fafc"/>
+</svg>

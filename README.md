@@ -20,11 +20,15 @@ The current board started from a 25-card improvement sweep covering search, filt
 
 ```bash
 npm install
+npm run verify:data
 npm run verify
 npm run verify:prod-smoke
+npm run cover:check
 ```
 
-`npm run verify` builds the app and runs Playwright desktop/mobile checks against local Vite. The local verifier mocks Open Library cover responses so third-party image delivery does not make product checks flaky.
+`npm run verify:data` validates the loaded library shape, platform references, duplicate titles/orders, and internal order gaps.
+
+`npm run verify` builds the app, validates the data, and runs Playwright desktop/mobile checks against local Vite. The local verifier mocks Open Library cover responses so third-party image delivery does not make product checks flaky.
 
 `npm run verify:prod-smoke` checks the production homepage/assets and the expected live data snapshot:
 
@@ -32,6 +36,8 @@ npm run verify:prod-smoke
 - books: `192`
 - read: `169`
 - missing: `23`
+
+`npm run cover:check` probes cover URLs independently and groups failures by series. It is intentionally separate from `npm run verify` because title-derived Open Library cover URLs can fail while the app still renders title plates or dynamically resolves alternatives.
 
 ## Deploys
 

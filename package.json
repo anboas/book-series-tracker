@@ -11,8 +11,10 @@
     "pages:dev": "npm run build:cloudflare && wrangler pages dev dist",
     "pages:deploy": "npm run build:cloudflare && wrangler pages deploy dist --project-name book-series-tracker",
     "preview": "vite preview --host 0.0.0.0",
+    "verify:data": "node scripts/validate-library.mjs",
+    "cover:check": "node scripts/check-covers.mjs",
     "verify:prod-smoke": "node scripts/prod-smoke.mjs",
-    "verify": "npm run build && node scripts/verify-site.mjs"
+    "verify": "npm run build && npm run verify:data && node scripts/verify-site.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^6.0.2",

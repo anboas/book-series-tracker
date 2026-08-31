@@ -69,6 +69,8 @@ async function fetchWithCheck(url, options = {}) {
 function extractAssets(html, baseUrl) {
   const scripts = new Set();
   const stylesheets = new Set();
+  const manifests = new Set();
+  const icons = new Set();
   const tagPattern = /<(script|link)\b[^>]*>/gi;
   const attrPattern = /\s([a-zA-Z:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
 
@@ -84,11 +86,19 @@ function extractAssets(html, baseUrl) {
     if (tagName === "link" && attrs.rel?.toLowerCase().split(/\s+/).includes("stylesheet") && attrs.href) {
       stylesheets.add(new URL(attrs.href, baseUrl).href);
     }
+    if (tagName === "link" && attrs.rel?.toLowerCase().split(/\s+/).includes("manifest") && attrs.href) {
+      manifests.add(new URL(attrs.href, baseUrl).href);
+    }
+    if (tagName === "link" && attrs.rel?.toLowerCase().split(/\s+/).includes("icon") && attrs.href) {
+      icons.add(new URL(attrs.href, baseUrl).href);
+    }
   }
 
   return {
     scripts: [...scripts],
     stylesheets: [...stylesheets],
+    manifests: [...manifests],
+    icons: [...icons],
   };
 }
 
@@ -101,11 +111,17 @@ assert.match(html, /Book Series Tracker/, "Homepage should identify the app");
 
 const assets = extractAssets(html, homeResponse.url || baseUrl);
 assert.ok(assets.scripts.length > 0, "Homepage should reference at least one JavaScript asset");
+assert.equal(assets.manifests.length, 1, "Homepage should reference one PWA manifest");
 
-for (const assetUrl of [...assets.scripts, ...assets.stylesheets]) {
+for (const assetUrl of [...assets.scripts, ...assets.stylesheets, ...assets.manifests, ...assets.icons]) {
   const assetResponse = await fetchWithCheck(assetUrl, { method: "HEAD" });
   assert.equal(assetResponse.status, 200, `Asset should return 200: ${assetUrl} got ${statusText(assetResponse)}`);
 }
+
+const manifest = await fetchWithCheck(assets.manifests[0]).then((response) => response.json());
+assert.equal(manifest.name, "Book Series Tracker", "Manifest should identify the app");
+assert.equal(manifest.display, "standalone", "Manifest should enable standalone display");
+assert.ok(Array.isArray(manifest.icons) && manifest.icons.length > 0, "Manifest should include icons");
 
 const data = await fetchGithubData();
 const stats = statsFor(data);
@@ -120,6 +136,7 @@ console.log(
     "homepage=200",
     `js_assets=${assets.scripts.length}`,
     `css_assets=${assets.stylesheets.length}`,
+    `manifests=${assets.manifests.length}`,
     `updated_at=${data.updatedAt}`,
     `books=${stats.books}`,
     `read=${stats.read}`,

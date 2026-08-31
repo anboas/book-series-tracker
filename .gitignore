@@ -1,5 +1,7 @@
 node_modules/
 dist/
-public/
+public/*
+!public/manifest.webmanifest
+!public/icon.svg
 test-results/
 .DS_Store
