@@ -50,6 +50,7 @@ button {
 .control-bar,
 .source-row,
 .status-distribution,
+.diagnostics-row,
 .workspace,
 .series-row,
 .detail-panel {
@@ -434,6 +435,24 @@ h1 {
   white-space: nowrap;
 }
 
+.diagnostics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.diagnostics-row span {
+  padding: 7px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(16, 21, 34, 0.72);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -445,6 +464,25 @@ h1 {
   display: grid;
   gap: 14px;
   min-width: 0;
+}
+
+.author-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.author-group > h2 {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(8, 10, 18, 0.96);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 950;
 }
 
 .series-row {
@@ -589,6 +627,23 @@ h1 {
   background: var(--series-state-color);
 }
 
+.collapse-button {
+  justify-self: end;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.collapse-button:hover {
+  border-color: var(--blue);
+}
+
 .book-rail {
   display: grid;
   grid-auto-flow: column;
@@ -601,6 +656,10 @@ h1 {
   scroll-padding-inline: 2px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
+}
+
+.book-rail[hidden] {
+  display: none;
 }
 
 .book-rail::-webkit-scrollbar {

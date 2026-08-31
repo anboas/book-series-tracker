@@ -4,4 +4,5 @@ public/*
 !public/manifest.webmanifest
 !public/icon.svg
 test-results/
+artifacts/
 .DS_Store

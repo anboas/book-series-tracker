@@ -13,6 +13,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "verify:data": "node scripts/validate-library.mjs",
     "cover:check": "node scripts/check-covers.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs",
     "verify:prod-smoke": "node scripts/prod-smoke.mjs",
     "verify": "npm run build && npm run verify:data && node scripts/verify-site.mjs"
   },

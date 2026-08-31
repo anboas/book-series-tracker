@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { fallbackLibrary } from "./fallbackLibrary.js";
 import "./styles.css";
@@ -81,7 +81,7 @@ function readStoredControls() {
       platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : CONTROL_DEFAULTS.platformFilter,
       seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : CONTROL_DEFAULTS.seriesSort,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : CONTROL_DEFAULTS.searchQuery,
-      seriesView: ["missing", "queue"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
+      seriesView: ["missing", "queue", "authors"].includes(parsed.seriesView) ? parsed.seriesView : CONTROL_DEFAULTS.seriesView,
       hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : CONTROL_DEFAULTS.hideCompletedSeries,
       density: DENSITY_ORDER.includes(parsed.density) ? parsed.density : CONTROL_DEFAULTS.density,
     };
@@ -92,7 +92,7 @@ function readStoredControls() {
     if (SERIES_SORT[sort]) controls.seriesSort = sort;
     if (params.has("platform")) controls.platformFilter = params.get("platform") || "all";
     if (params.has("q")) controls.searchQuery = params.get("q") || "";
-    if (["all", "missing", "queue"].includes(view)) controls.seriesView = view;
+    if (["all", "missing", "queue", "authors"].includes(view)) controls.seriesView = view;
     if (params.has("hideComplete")) controls.hideCompletedSeries = params.get("hideComplete") === "1";
     if (DENSITY_ORDER.includes(params.get("density"))) controls.density = params.get("density");
     return controls;
@@ -333,6 +333,17 @@ function visibleBooksFor(series = []) {
   ));
 }
 
+function authorGroupsFor(series = []) {
+  const groups = new Map();
+  for (const item of series) {
+    const key = item.author || "Unknown author";
+    groups.set(key, [...(groups.get(key) || []), item]);
+  }
+  return [...groups.entries()]
+    .map(([author, items]) => ({ author, series: items }))
+    .sort((a, b) => a.author.localeCompare(b.author));
+}
+
 function csvEscape(value) {
   const text = String(value ?? "");
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
@@ -435,6 +446,30 @@ function missingTitleSearchUrl(book) {
   })}`;
 }
 
+function bookHashFor(book) {
+  return book?.seriesId ? `#book=${encodeURIComponent(book.seriesId)}:${encodeURIComponent(String(book.order))}` : "";
+}
+
+function findBookFromHash(library, hash) {
+  const match = /^#book=([^:]+):(.+)$/.exec(hash || "");
+  if (!match) return null;
+  const seriesId = decodeURIComponent(match[1]);
+  const order = decodeURIComponent(match[2]);
+  const series = (library.series || []).find((item) => item.id === seriesId);
+  const book = (series?.books || []).find((item) => String(item.order) === order);
+  return book ? { ...book, seriesId: series.id, seriesTitle: series.title, seriesAccent: series.accent, seriesNote: series.note, seriesPriority: series.priority } : null;
+}
+
+function diagnosticsFor(library) {
+  const series = library.series || [];
+  const books = series.flatMap((item) => item.books || []);
+  const coverIdCount = books.filter((book) => /\/b\/id\//.test(book.coverUrl || "")).length;
+  const titleCoverCount = books.filter((book) => /\/b\/title\//.test(book.coverUrl || "")).length;
+  const metadataCount = books.filter((book) => bookMetadataFor(book)).length;
+  const priorities = series.filter((item) => item.priority || item.note).length;
+  return { series: series.length, books: books.length, coverIdCount, titleCoverCount, metadataCount, priorities };
+}
+
 function App() {
   const { library, source, sourceMeta } = useLibrary();
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
@@ -447,7 +482,9 @@ function App() {
   const [hideCompletedSeries, setHideCompletedSeries] = useState(initialControls.hideCompletedSeries);
   const [density, setDensity] = useState(initialControls.density);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [collapsedSeries, setCollapsedSeries] = useState(() => new Set());
   const [actionMessage, setActionMessage] = useState("");
+  const restoredHash = useRef(false);
 
   useEffect(() => {
     if ((library.platforms || []).length && platformFilter !== "all" && !platforms[platformFilter]) {
@@ -507,6 +544,8 @@ function App() {
   const totalStats = statsFor(library.series || []);
   const stateCounts = seriesStateCountsFor(library.series || []);
   const platformStats = platformStatsFor(library.series || [], library.platforms || []);
+  const authorGroups = authorGroupsFor(filteredSeries);
+  const diagnostics = diagnosticsFor(library);
   const selected = selectedBook;
   const cacheAgeMs = sourceMeta.cachedAt ? Date.now() - new Date(sourceMeta.cachedAt).getTime() : 0;
   const staleCachedData = sourceMeta.cachedAt && cacheAgeMs > 1000 * 60 * 60 * 24;
@@ -520,6 +559,19 @@ function App() {
     setDensity(CONTROL_DEFAULTS.density);
     setActionMessage("Controls reset");
   };
+  const toggleCollapsedSeries = (seriesId) => {
+    setCollapsedSeries((current) => {
+      const next = new Set(current);
+      if (next.has(seriesId)) next.delete(seriesId);
+      else next.add(seriesId);
+      return next;
+    });
+  };
+  const selectBook = (book) => {
+    setSelectedBook(book);
+    const hash = bookHashFor(book);
+    if (hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
+  };
   const copyShareLink = () => {
     writeUrlControls({ statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries, density });
     copyText(window.location.href).then(() => setActionMessage("Share link copied")).catch(() => setActionMessage("Copy failed"));
@@ -529,10 +581,22 @@ function App() {
   };
   const clearSelectedBook = () => {
     setSelectedBook(null);
+    if (window.location.hash.startsWith("#book=")) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
     if (document.activeElement?.closest?.("[data-book-card]")) {
       document.activeElement.blur();
     }
   };
+
+  useEffect(() => {
+    if (restoredHash.current || !(library.series || []).length) return;
+    const book = findBookFromHash(library, window.location.hash);
+    if (!book) return;
+    restoredHash.current = true;
+    setSelectedBook(book);
+    requestAnimationFrame(() => jumpToSeries(book.seriesId));
+  }, [library]);
 
   return (
     <main className="library-app" data-density={density} onClick={clearSelectedBook} data-book-series-app>
@@ -610,6 +674,14 @@ function App() {
           >
             Queue
           </button>
+          <button
+            type="button"
+            className={seriesView === "authors" ? "active" : ""}
+            onClick={() => setSeriesView(seriesView === "authors" ? "all" : "authors")}
+            data-author-view-toggle
+          >
+            Authors
+          </button>
           <label className="check-control">
             <input
               type="checkbox"
@@ -682,6 +754,15 @@ function App() {
         <span style={{ "--segment-color": "var(--red)", "--segment-size": `${totalStats.unowned || 0}` }}>Missing {totalStats.unowned} titles</span>
       </section>
 
+      <section className="diagnostics-row" aria-label="Import diagnostics" data-import-diagnostics>
+        <span>{diagnostics.series} series</span>
+        <span>{diagnostics.books} books</span>
+        <span>{diagnostics.coverIdCount} cover IDs</span>
+        <span>{diagnostics.titleCoverCount} title covers</span>
+        <span>{diagnostics.metadataCount} release metadata</span>
+        <span>{diagnostics.priorities} priorities</span>
+      </section>
+
       <div className="workspace">
         {selected ? (
           <aside className="detail-panel" onClick={(event) => event.stopPropagation()} data-book-detail>
@@ -690,13 +771,30 @@ function App() {
         ) : null}
 
         <section className="series-stack" data-series-stack>
-          {filteredSeries.length ? filteredSeries.map((series) => (
+          {filteredSeries.length && seriesView === "authors" ? authorGroups.map((group) => (
+            <section className="author-group" key={group.author} data-author-group>
+              <h2>{group.author}</h2>
+              {group.series.map((series) => (
+                <SeriesRow
+                  key={series.id}
+                  series={series}
+                  platforms={platforms}
+                  selected={selected}
+                  collapsed={collapsedSeries.has(series.id)}
+                  onToggleCollapsed={toggleCollapsedSeries}
+                  onSelect={selectBook}
+                />
+              ))}
+            </section>
+          )) : filteredSeries.length ? filteredSeries.map((series) => (
             <SeriesRow
               key={series.id}
               series={series}
               platforms={platforms}
               selected={selected}
-              onSelect={setSelectedBook}
+              collapsed={collapsedSeries.has(series.id)}
+              onToggleCollapsed={toggleCollapsedSeries}
+              onSelect={selectBook}
             />
           )) : (
             <div className="empty-row" data-empty-view>
@@ -740,7 +838,7 @@ function StateStat({ label, value, tone }) {
   );
 }
 
-function SeriesRow({ series, platforms, selected, onSelect }) {
+function SeriesRow({ series, platforms, selected, collapsed, onToggleCollapsed, onSelect }) {
   const stats = statsFor([series]);
   const state = seriesStateFor(stats);
   const nextMissing = nextMissingBookFor(series);
@@ -779,14 +877,27 @@ function SeriesRow({ series, platforms, selected, onSelect }) {
           <em>{state.detail}</em>
           <strong>{stats.read}/{stats.books}</strong>
           <span><i style={progressStyle} /></span>
+          <button
+            type="button"
+            className="collapse-button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleCollapsed(series.id);
+            }}
+            aria-expanded={!collapsed}
+            data-collapse-series
+          >
+            {collapsed ? "Show" : "Hide"}
+          </button>
         </div>
       </header>
-      <div className="book-rail" data-book-rail>
+      <div className="book-rail" data-book-rail hidden={collapsed}>
         {series.books.length ? series.books.map((book) => (
           <BookCard
             key={`${series.id}-${book.order}`}
             book={{
               ...book,
+              seriesId: series.id,
               seriesTitle: series.title,
               seriesAccent: series.accent,
               seriesNote: series.note,
