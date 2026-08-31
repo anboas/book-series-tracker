@@ -385,7 +385,8 @@ h1 {
 .search-control input,
 .control-bar select,
 .control-bar .export-button,
-.control-bar a {
+.control-bar a,
+.tools-menu summary {
   min-height: 38px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -483,12 +484,51 @@ h1 {
   padding: 0 10px;
 }
 
+.tools-menu {
+  position: relative;
+  grid-column: span 1;
+  min-width: 0;
+}
+
+.tools-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 850;
+  list-style: none;
+  cursor: pointer;
+}
+
+.tools-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.tools-menu[open] summary {
+  border-color: var(--blue);
+  background: #102338;
+}
+
 .action-buttons {
   display: grid;
-  grid-column: span 2;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   min-width: 0;
+}
+
+.tools-menu .action-buttons {
+  position: absolute;
+  right: 0;
+  z-index: 6;
+  min-width: 220px;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(12, 17, 29, 0.98);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
 }
 
 .action-buttons button,
@@ -1248,7 +1288,7 @@ h1 {
   .search-control,
   .segmented-control,
   .series-tools,
-  .action-buttons {
+  .tools-menu {
     grid-column: 1 / -1;
   }
 
@@ -1367,7 +1407,7 @@ h1 {
   .search-control,
   .segmented-control,
   .series-tools,
-  .action-buttons {
+  .tools-menu {
     grid-column: auto;
   }
 
@@ -1383,8 +1423,10 @@ h1 {
     grid-auto-columns: minmax(180px, 1fr);
   }
 
-  .action-buttons {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .tools-menu .action-buttons {
+    right: auto;
+    left: 0;
+    width: min(100%, 260px);
   }
 
   .series-row {

@@ -139,6 +139,8 @@ try {
       "book card accessible label should include title, order, status, and platforms",
     );
     assert.equal(await page.locator(".platform-dots, .platform-labels").count(), 0, "book cards should use border-only platform marking");
+    await page.locator("[data-tools-menu] summary").click();
+    assert.equal(await page.locator("[data-tools-menu]").getAttribute("open"), "", "Tools menu should expose secondary actions on demand");
     const download = page.waitForEvent("download");
     await page.locator("[data-export-view]").click();
     assert.equal((await download).suggestedFilename(), "book-series-current-view.csv", "export should download current view CSV");

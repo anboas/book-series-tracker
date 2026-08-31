@@ -976,14 +976,17 @@ function App() {
             <option key={series.id} value={series.id}>{series.title}</option>
           ))}
         </select>
-        <div className="action-buttons" aria-label="View actions">
-          <button type="button" onClick={copyShareLink} data-copy-share-link>Share</button>
-          <button type="button" onClick={resetControls} data-reset-controls>Reset</button>
-          <button type="button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>CSV</button>
-          <button type="button" onClick={() => exportVisibleBooksJson(filteredSeries)} data-export-json>JSON</button>
-          <button type="button" onClick={copyMissingList} data-copy-missing-list>Missing</button>
-          <button type="button" onClick={() => window.print()} data-print-missing-list>Print</button>
-        </div>
+        <details className="tools-menu" data-tools-menu>
+          <summary>Tools</summary>
+          <div className="action-buttons" aria-label="View actions">
+            <button type="button" onClick={copyShareLink} data-copy-share-link>Share</button>
+            <button type="button" onClick={resetControls} data-reset-controls>Reset</button>
+            <button type="button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>CSV</button>
+            <button type="button" onClick={() => exportVisibleBooksJson(filteredSeries)} data-export-json>JSON</button>
+            <button type="button" onClick={copyMissingList} data-copy-missing-list>Missing</button>
+            <button type="button" onClick={() => window.print()} data-print-missing-list>Print</button>
+          </div>
+        </details>
       </section>
 
       <section className="source-row" aria-label="Data source">
