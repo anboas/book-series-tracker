@@ -45,6 +45,7 @@ button {
 }
 
 .app-header,
+.series-state-strip,
 .control-bar,
 .source-row,
 .workspace,
@@ -60,6 +61,63 @@ button {
   gap: 16px;
   align-items: end;
   margin-bottom: 14px;
+}
+
+.series-state-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.state-stat {
+  --state-color: var(--muted);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--state-color), transparent 35%);
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: rgba(16, 21, 34, 0.88);
+}
+
+.state-stat--read {
+  --state-color: var(--green);
+}
+
+.state-stat--gap {
+  --state-color: var(--amber);
+}
+
+.state-stat--missing {
+  --state-color: var(--red);
+}
+
+.state-stat--partial {
+  --state-color: var(--purple);
+}
+
+.state-stat--collected {
+  --state-color: var(--blue);
+}
+
+.state-stat strong {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.state-stat span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .brand-block {
@@ -137,7 +195,7 @@ h1 {
 
 .control-bar {
   display: grid;
-  grid-template-columns: minmax(220px, 0.6fr) minmax(0, 1fr) 180px 180px 128px;
+  grid-template-columns: minmax(220px, 0.45fr) minmax(280px, 1fr) minmax(230px, 0.5fr) 170px 170px 120px;
   gap: 10px;
   align-items: center;
   margin-bottom: 10px;
@@ -155,6 +213,7 @@ h1 {
 }
 
 .segmented-control button,
+.series-tools button,
 .search-control input,
 .control-bar select,
 .control-bar a {
@@ -195,6 +254,50 @@ h1 {
 .segmented-control button {
   flex: 0 0 auto;
   padding: 0 13px;
+}
+
+.series-tools {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(120px, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.series-tools button {
+  padding: 0 11px;
+}
+
+.series-tools button.active {
+  border-color: var(--amber);
+  background: #2a1d0b;
+}
+
+.check-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.check-control input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--green);
+}
+
+.check-control span {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .segmented-control button.active,
@@ -290,6 +393,39 @@ h1 {
   font-size: 24px;
   font-weight: 950;
   line-height: 1.05;
+}
+
+.next-missing {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 9px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--series-state-color), transparent 35%);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--series-state-color), transparent 85%);
+}
+
+.next-missing b {
+  color: var(--series-state-color);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.next-missing span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .series-meter {
@@ -589,6 +725,20 @@ h1 {
     overflow-x: auto;
   }
 
+  .series-state-strip {
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    overflow-x: auto;
+  }
+
+  .control-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .search-control,
+  .segmented-control {
+    grid-column: 1 / -1;
+  }
+
   .detail-panel {
     position: static;
     grid-template-columns: 112px minmax(0, 1fr);
@@ -610,6 +760,15 @@ h1 {
   }
 
   .control-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .search-control,
+  .segmented-control {
+    grid-column: auto;
+  }
+
+  .series-tools {
     grid-template-columns: 1fr;
   }
 

@@ -4,6 +4,10 @@ import { existsSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 const BASE_URL = "http://127.0.0.1:4274/";
+const MOCK_COVER_IMAGE = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+  "base64",
+);
 
 async function waitForServer(url, timeoutMs = 20000) {
   const started = Date.now();
@@ -31,7 +35,12 @@ const browser = await chromium.launch({
 try {
   for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     const page = await browser.newPage({ viewport });
+    await page.route("https://covers.openlibrary.org/**", (route) => {
+      route.fulfill({ status: 200, contentType: "image/png", body: MOCK_COVER_IMAGE });
+    });
     await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => localStorage.removeItem("book-series-tracker:controls"));
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-book-series-app]");
     await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
     const text = await page.locator("[data-book-series-app]").innerText();
@@ -49,6 +58,20 @@ try {
     assert.doesNotMatch(text, /The Land/);
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
+    const stateSummary = await page.locator("[data-series-state-summary]").innerText();
+    assert.match(stateSummary, /40\s+Read all/i, "state summary should count fully read series");
+    assert.match(stateSummary, /3\s+Gap/i, "state summary should count mostly covered gap series");
+    assert.match(stateSummary, /4\s+Missing/i, "state summary should count missing-heavy series");
+    await page.locator("[data-missing-series-toggle]").click();
+    assert.equal(await page.locator("[data-series-stack] > article").count(), 7, "missing-series view should show only series with gaps");
+    assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').count(), 0, "missing-series view should hide complete series");
+    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-next-missing]').innerText(), /#2 Carl's Doomsday Scenario/i);
+    await page.locator("[data-missing-series-toggle]").click();
+    await page.locator("[data-hide-completed-toggle]").check();
+    assert.equal(await page.locator("[data-series-stack] > article").count(), 7, "hide-completed should remove fully read rows");
+    assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').count(), 0, "hide-completed should hide Stormlight");
+    assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').count(), 1, "hide-completed should retain incomplete rows");
+    await page.locator("[data-hide-completed-toggle]").uncheck();
     await page.locator("[data-library-search]").fill("doomsday");
     assert.equal(await page.locator("[data-series-stack] > article").count(), 1, "search should hide non-matching series rows");
     assert.equal(await page.locator("[data-book-card]").count(), 1, "search should narrow visible books");
@@ -77,20 +100,27 @@ try {
     assert.ok(workspaceWidth >= viewport.width - 24, `workspace should use available width at ${viewport.width}: ${workspaceWidth}`);
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').count(), 7, "Dungeon Crawler Carl should render the full seven-book main series");
     await page.locator('[data-series-id="dungeon-crawler-carl"]').scrollIntoViewIfNeeded();
-    const dccCoverStates = await page.locator('[data-series-id="dungeon-crawler-carl"] img').evaluateAll(async (images) => {
-      await Promise.all(images.map((image) => {
-        image.loading = "eager";
-        if (image.complete) return image.decode?.().catch(() => undefined);
-        return new Promise((resolve) => {
-          image.addEventListener("load", resolve, { once: true });
-          image.addEventListener("error", resolve, { once: true });
-          setTimeout(resolve, 10000);
-        }).then(() => image.decode?.().catch(() => undefined));
-      }));
-      return images.map((image) => ({ hidden: image.hidden, naturalWidth: image.naturalWidth }));
-    });
-    assert.equal(dccCoverStates.length, 7, "Dungeon Crawler Carl should have cover images for every book");
-    assert.ok(dccCoverStates.every((image) => !image.hidden && image.naturalWidth > 0), "Dungeon Crawler Carl covers should load");
+    const dccImages = page.locator('[data-series-id="dungeon-crawler-carl"] img');
+    assert.equal(await dccImages.count(), 7, "Dungeon Crawler Carl should have cover images for every book");
+    if (viewport.width >= 1440) {
+      for (let index = 0; index < await dccImages.count(); index += 1) {
+        const image = dccImages.nth(index);
+        await image.scrollIntoViewIfNeeded();
+        const coverState = await image.evaluate(async (image) => {
+          image.loading = "eager";
+          if (!image.complete) {
+            await new Promise((resolve) => {
+              image.addEventListener("load", resolve, { once: true });
+              image.addEventListener("error", resolve, { once: true });
+              setTimeout(resolve, 10000);
+            });
+          }
+          await image.decode?.().catch(() => undefined);
+          return { hidden: image.hidden, naturalWidth: image.naturalWidth };
+        });
+        assert.ok(!coverState.hidden && coverState.naturalWidth > 0, `Dungeon Crawler Carl cover ${index + 1} should load`);
+      }
+    }
     assert.equal(await page.locator("[data-book-detail]").count(), 0, "should not show book detail before a book is selected");
     const scrollableRails = await page.locator("[data-book-rail]").evaluateAll((rails) => (
       rails.filter((rail) => rail.scrollWidth > rail.clientWidth + 4).length

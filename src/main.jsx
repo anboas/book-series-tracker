@@ -64,6 +64,8 @@ function readStoredControls() {
     platformFilter: "all",
     seriesSort: "library",
     searchQuery: "",
+    seriesView: "all",
+    hideCompletedSeries: false,
   };
 
   try {
@@ -73,6 +75,8 @@ function readStoredControls() {
       platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : defaults.platformFilter,
       seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : defaults.seriesSort,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : defaults.searchQuery,
+      seriesView: parsed.seriesView === "missing" ? "missing" : defaults.seriesView,
+      hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : defaults.hideCompletedSeries,
     };
   } catch {
     return defaults;
@@ -210,6 +214,20 @@ function seriesStateFor(stats) {
   return { tone: "partial", label: "In progress", detail: `${stats.read}/${stats.books} read` };
 }
 
+function seriesStateCountsFor(series = []) {
+  return series.reduce((counts, item) => {
+    const state = seriesStateFor(statsFor([item])).tone;
+    counts[state] = (counts[state] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function nextMissingBookFor(series) {
+  return [...(series.allBooks || series.books || [])]
+    .filter((book) => book.status === "unowned")
+    .sort((a, b) => (a.order || 0) - (b.order || 0))[0] || null;
+}
+
 function App() {
   const { library, source } = useLibrary();
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
@@ -218,6 +236,8 @@ function App() {
   const [platformFilter, setPlatformFilter] = useState(initialControls.platformFilter);
   const [seriesSort, setSeriesSort] = useState(initialControls.seriesSort);
   const [searchQuery, setSearchQuery] = useState(initialControls.searchQuery);
+  const [seriesView, setSeriesView] = useState(initialControls.seriesView);
+  const [hideCompletedSeries, setHideCompletedSeries] = useState(initialControls.hideCompletedSeries);
   const [selectedBook, setSelectedBook] = useState(null);
 
   useEffect(() => {
@@ -227,8 +247,8 @@ function App() {
   }, [library.platforms, platformFilter, platforms]);
 
   useEffect(() => {
-    writeStoredControls({ statusFilter, platformFilter, seriesSort, searchQuery });
-  }, [platformFilter, searchQuery, seriesSort, statusFilter]);
+    writeStoredControls({ statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries });
+  }, [hideCompletedSeries, platformFilter, searchQuery, seriesSort, seriesView, statusFilter]);
 
   const filteredSeries = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -252,6 +272,7 @@ function App() {
 
       return {
         ...series,
+        allBooks: series.books || [],
         sortIndex: index,
         sortStats: statsFor([series]),
         books,
@@ -259,12 +280,19 @@ function App() {
     });
 
     return mappedSeries
-      .filter((series) => !normalizedQuery || series.books.length > 0)
+      .filter((series) => {
+        const fullState = seriesStateFor(series.sortStats).tone;
+        if (seriesView === "missing" && series.sortStats.unowned === 0) return false;
+        if (hideCompletedSeries && fullState === "read") return false;
+        if (normalizedQuery && series.books.length === 0) return false;
+        return true;
+      })
       .sort(SERIES_SORT[seriesSort]?.compare || SERIES_SORT.library.compare);
-  }, [library.series, platformFilter, searchQuery, seriesSort, statusFilter]);
+  }, [hideCompletedSeries, library.series, platformFilter, searchQuery, seriesSort, seriesView, statusFilter]);
 
   const visibleStats = statsFor(filteredSeries);
   const totalStats = statsFor(library.series || []);
+  const stateCounts = seriesStateCountsFor(library.series || []);
   const selected = selectedBook;
   const clearSelectedBook = () => {
     setSelectedBook(null);
@@ -290,6 +318,14 @@ function App() {
         </div>
       </header>
 
+      <section className="series-state-strip" aria-label="Series state summary" data-series-state-summary>
+        <StateStat label="Read all" value={stateCounts.read || 0} tone="read" />
+        <StateStat label="Gap" value={stateCounts.gap || 0} tone="gap" />
+        <StateStat label="Missing" value={stateCounts.missing || 0} tone="missing" />
+        <StateStat label="Partial" value={stateCounts.partial || 0} tone="partial" />
+        <StateStat label="Collected" value={stateCounts.collected || 0} tone="collected" />
+      </section>
+
       <section className="control-bar" aria-label="Library controls">
         <label className="search-control">
           <span>Search library</span>
@@ -313,6 +349,25 @@ function App() {
               {status.label}
             </button>
           ))}
+        </div>
+        <div className="series-tools" aria-label="Series view controls">
+          <button
+            type="button"
+            className={seriesView === "missing" ? "active" : ""}
+            onClick={() => setSeriesView(seriesView === "missing" ? "all" : "missing")}
+            data-missing-series-toggle
+          >
+            Gaps only
+          </button>
+          <label className="check-control">
+            <input
+              type="checkbox"
+              checked={hideCompletedSeries}
+              onChange={(event) => setHideCompletedSeries(event.target.checked)}
+              data-hide-completed-toggle
+            />
+            <span>Hide complete</span>
+          </label>
         </div>
         <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} aria-label="Filter by platform">
           <option value="all">All platforms</option>
@@ -366,9 +421,19 @@ function Stat({ label, value }) {
   );
 }
 
+function StateStat({ label, value, tone }) {
+  return (
+    <article className={`state-stat state-stat--${tone}`}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </article>
+  );
+}
+
 function SeriesRow({ series, platforms, selected, onSelect }) {
   const stats = statsFor([series]);
   const state = seriesStateFor(stats);
+  const nextMissing = nextMissingBookFor(series);
   const progressStyle = { width: `${stats.progress}%` };
 
   return (
@@ -383,6 +448,12 @@ function SeriesRow({ series, platforms, selected, onSelect }) {
           <span>{series.author}</span>
           <h2>{series.title}</h2>
           <p>{series.summary}</p>
+          {nextMissing ? (
+            <p className="next-missing" data-next-missing>
+              <b>Next missing</b>
+              <span>#{nextMissing.order} {nextMissing.title}</span>
+            </p>
+          ) : null}
         </div>
         <div className="series-meter" aria-label={`${series.title} progress`} data-series-meter>
           <b>{state.label}</b>
