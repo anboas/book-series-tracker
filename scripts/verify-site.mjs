@@ -96,6 +96,7 @@ try {
     const dccBadges = await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-badges]').innerText();
     assert.match(dccBadges, /1 read/i, "series header should show read count badge");
     assert.match(dccBadges, /6 missing/i, "series header should show missing count badge");
+    assert.doesNotMatch(dccBadges, /7 total/i, "series header should avoid redundant total count chrome");
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline] button').count(), 7, "series timeline should show one chip per DCC book");
     assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-timeline]').innerText(), /1[\s\S]*7/, "series timeline should expose ordered book chips");
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-platform-focus-count"), "1", "platform focus count should use full series data");
@@ -186,9 +187,11 @@ try {
     await page.locator("[data-series-sort]").selectOption("library");
     await page.locator("[data-missing-series-toggle]").click();
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-series-state"), "missing", "Dungeon Crawler Carl should show missing series state");
-    assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-meter]').innerText(), /MISSING 6/);
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').getAttribute("data-series-state"), "read", "fully tracked Audible series should show read-all state");
-    assert.match(await page.locator('[data-series-id="the-stormlight-archive"] [data-series-meter]').innerText(), /READ ALL/);
+    if (viewport.width > 640) {
+      assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-meter]').innerText(), /MISSING 6/);
+      assert.match(await page.locator('[data-series-id="the-stormlight-archive"] [data-series-meter]').innerText(), /READ ALL/);
+    }
     assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "he-who-fights-with-monsters", "library sort should preserve library order");
     await page.locator("[data-series-sort]").selectOption("coverage");
     assert.equal(await page.locator('[data-series-stack] > article').first().getAttribute("data-series-id"), "dungeon-crawler-carl", "least-covered sort should surface Dungeon Crawler Carl first");

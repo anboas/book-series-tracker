@@ -1171,7 +1171,6 @@ function SeriesRow({ series, platforms, selected, collapsed, platformFocus, onTo
           <p className="series-meta-line" aria-label={`${series.title} reading summary`} data-series-badges>
             <b className="series-badge series-badge--green">{stats.read} read</b>
             {stats.unowned ? <b className="series-badge series-badge--red">{stats.unowned} missing</b> : <b className="series-badge series-badge--green">Read all</b>}
-            {stats.books ? <b className="series-badge">{stats.books} total</b> : null}
             {nextMissing.length ? (
               <span className="next-missing" data-next-missing>
                 <b>Next</b> {nextMissing.map((book) => `#${book.order} ${book.title}`).join(" · ")}
