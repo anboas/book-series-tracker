@@ -140,10 +140,16 @@ function App() {
 
   const visibleStats = statsFor(filteredSeries);
   const totalStats = statsFor(library.series || []);
-  const selected = selectedBook || filteredSeries.find((series) => series.books.length)?.books[0];
+  const selected = selectedBook;
+  const clearSelectedBook = () => {
+    setSelectedBook(null);
+    if (document.activeElement?.closest?.("[data-book-card]")) {
+      document.activeElement.blur();
+    }
+  };
 
   return (
-    <main className="library-app" data-book-series-app>
+    <main className="library-app" onClick={clearSelectedBook} data-book-series-app>
       <header className="app-header">
         <div className="brand-block">
           <span className="eyebrow">Reading control surface</span>
@@ -188,13 +194,11 @@ function App() {
       </section>
 
       <div className="workspace">
-        <aside className="detail-panel" data-book-detail>
-          {selected ? (
+        {selected ? (
+          <aside className="detail-panel" onClick={(event) => event.stopPropagation()} data-book-detail>
             <BookDetail book={selected} platforms={platforms} />
-          ) : (
-            <div className="empty-detail">No books match the current filter.</div>
-          )}
-        </aside>
+          </aside>
+        ) : null}
 
         <section className="series-stack" data-series-stack>
           {filteredSeries.map((series) => (
@@ -265,7 +269,10 @@ function BookCard({ book, platforms, active, onSelect }) {
       type="button"
       className={`book-card book-card--${book.status}${active ? " active" : ""}`}
       style={{ "--platform-color": borderColor }}
-      onClick={() => onSelect(book)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(book);
+      }}
       data-book-card
     >
       <span className={`status-pill status-pill--${status.tone}`}>{status.label}</span>

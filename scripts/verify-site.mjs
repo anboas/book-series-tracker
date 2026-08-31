@@ -29,7 +29,7 @@ const browser = await chromium.launch({
 });
 
 try {
-  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     const page = await browser.newPage({ viewport });
     await page.goto(BASE_URL, { waitUntil: "networkidle" });
     await page.waitForSelector("[data-book-series-app]");
@@ -46,6 +46,8 @@ try {
     assert.doesNotMatch(text, /The Land/);
     assert.ok(await page.locator("[data-series-stack] > article").count() >= 40, "should render the Audible series library");
     assert.ok(await page.locator("[data-book-card]").count() >= 190, "should render the Audible title cards and derived gaps");
+    const workspaceWidth = await page.locator(".workspace").evaluate((node) => node.getBoundingClientRect().width);
+    assert.ok(workspaceWidth >= viewport.width - 24, `workspace should use available width at ${viewport.width}: ${workspaceWidth}`);
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-book-card]').count(), 7, "Dungeon Crawler Carl should render the full seven-book main series");
     await page.locator('[data-series-id="dungeon-crawler-carl"]').scrollIntoViewIfNeeded();
     const dccCoverStates = await page.locator('[data-series-id="dungeon-crawler-carl"] img').evaluateAll(async (images) => {
@@ -61,14 +63,24 @@ try {
     });
     assert.equal(dccCoverStates.length, 7, "Dungeon Crawler Carl should have cover images for every book");
     assert.ok(dccCoverStates.every((image) => !image.hidden && image.naturalWidth > 0), "Dungeon Crawler Carl covers should load");
-    assert.equal(await page.locator("[data-book-detail]").count(), 1, "should render selected book detail");
+    assert.equal(await page.locator("[data-book-detail]").count(), 0, "should not show book detail before a book is selected");
     const scrollableRails = await page.locator("[data-book-rail]").evaluateAll((rails) => (
       rails.filter((rail) => rail.scrollWidth > rail.clientWidth + 4).length
     ));
     assert.ok(scrollableRails >= 1, "at least one series row should scroll horizontally inside the row");
+    const visibleRailScrollbars = await page.locator("[data-book-rail]").evaluateAll((rails) => (
+      rails.filter((rail) => getComputedStyle(rail).scrollbarWidth !== "none").length
+    ));
+    assert.equal(visibleRailScrollbars, 0, "series rows should not show persistent horizontal scrollbars");
     await page.locator("[data-book-rail]").first().evaluate((rail) => {
       rail.scrollLeft = rail.scrollWidth;
     });
+    await page.locator("[data-book-card]").first().click();
+    assert.equal(await page.locator("[data-book-detail]").count(), 1, "selecting a book should show the focus dock");
+    assert.equal(await page.locator("[data-book-card].active").count(), 1, "selecting a book should mark one active card");
+    await page.locator(".app-header").click();
+    assert.equal(await page.locator("[data-book-detail]").count(), 0, "clicking away should clear the focus dock");
+    assert.equal(await page.locator("[data-book-card].active").count(), 0, "clicking away should clear active book focus");
     await page.locator("[data-status-filter] button", { hasText: "Missing" }).click();
     assert.ok(await page.locator("[data-book-card]").count() >= 10, "missing filter should retain derived unread gaps");
     const overflow = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);

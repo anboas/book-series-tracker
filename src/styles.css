@@ -39,7 +39,7 @@ button {
 
 .library-app {
   min-height: 100vh;
-  padding: 18px;
+  padding: 12px;
   background: #080a12;
 }
 
@@ -49,7 +49,7 @@ button {
 .workspace,
 .series-row,
 .detail-panel {
-  width: min(1920px, 100%);
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -275,27 +275,15 @@ h1 {
   gap: 12px;
   max-width: 100%;
   overflow-x: auto;
-  padding: 1px 2px 9px;
+  padding: 1px 2px 4px;
   overscroll-behavior-x: contain;
   scroll-padding-inline: 2px;
   scroll-snap-type: x proximity;
-  scrollbar-color: var(--series-accent) #111827;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
 .book-rail::-webkit-scrollbar {
-  height: 10px;
-}
-
-.book-rail::-webkit-scrollbar-track {
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: #111827;
-}
-
-.book-rail::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--series-accent);
+  display: none;
 }
 
 .book-card {
@@ -540,7 +528,7 @@ h1 {
 
 @media (max-width: 640px) {
   .library-app {
-    padding: 12px;
+    padding: 10px;
   }
 
   h1 {
