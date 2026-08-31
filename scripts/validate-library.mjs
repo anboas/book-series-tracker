@@ -27,6 +27,19 @@ function requireString(errors, value, label) {
   if (typeof value !== "string" || !value.trim()) fail(errors, `${label} must be a non-empty string`);
 }
 
+function optionalString(errors, value, label) {
+  if (value !== undefined && (typeof value !== "string" || !value.trim())) {
+    fail(errors, `${label} must be a non-empty string when present`);
+  }
+}
+
+function optionalYear(errors, value, label) {
+  if (value === undefined) return;
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return;
+  if (typeof value === "string" && value.trim()) return;
+  fail(errors, `${label} must be a positive integer or non-empty string when present`);
+}
+
 function validateLibrary(library) {
   const errors = [];
   requireString(errors, library.updatedAt, "library.updatedAt");
@@ -49,6 +62,8 @@ function validateLibrary(library) {
     requireString(errors, series.id, `${label}.id`);
     requireString(errors, series.title, `${label}.title`);
     requireString(errors, series.author, `${label}.author`);
+    optionalString(errors, series.note, `${label}.note`);
+    optionalString(errors, series.priority, `${label}.priority`);
     if (!Array.isArray(series.books)) fail(errors, `${label}.books must be an array`);
     if (series.id && seriesIds.has(series.id)) fail(errors, `${label}.id duplicates series ${series.id}`);
     if (series.id) seriesIds.add(series.id);
@@ -64,6 +79,12 @@ function validateLibrary(library) {
       requireString(errors, book.title, `${bookLabel}.title`);
       requireString(errors, book.author, `${bookLabel}.author`);
       requireString(errors, book.source, `${bookLabel}.source`);
+      optionalString(errors, book.note, `${bookLabel}.note`);
+      optionalString(errors, book.priority, `${bookLabel}.priority`);
+      optionalYear(errors, book.year, `${bookLabel}.year`);
+      optionalYear(errors, book.publicationYear, `${bookLabel}.publicationYear`);
+      optionalString(errors, book.releaseDate, `${bookLabel}.releaseDate`);
+      optionalString(errors, book.publicationDate, `${bookLabel}.publicationDate`);
       if (!VALID_STATUSES.has(book.status)) fail(errors, `${bookLabel}.status must be one of ${[...VALID_STATUSES].join(", ")}`);
       if (!Array.isArray(book.platforms)) fail(errors, `${bookLabel}.platforms must be an array`);
       for (const platformId of book.platforms || []) {

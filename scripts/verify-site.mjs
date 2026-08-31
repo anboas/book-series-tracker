@@ -64,6 +64,25 @@ try {
     assert.match(stateSummary, /3\s+Gap/i, "state summary should count mostly covered gap series");
     assert.match(stateSummary, /4\s+Missing/i, "state summary should count missing-heavy series");
     assert.match(await page.locator("[data-platform-summary]").innerText(), /Audible\s+169/i, "platform summary should count Audible titles");
+    await page.locator("[data-series-jump]").selectOption("dungeon-crawler-carl");
+    await page.waitForFunction(() => Math.abs(document.querySelector('[data-series-id="dungeon-crawler-carl"]').getBoundingClientRect().top) < 80);
+    await page.locator("[data-queue-view-toggle]").click();
+    assert.equal(await page.locator("[data-series-stack] > article").count(), 0, "queue view should hide rows when no books are queued");
+    assert.match(await page.locator("[data-empty-view]").innerText(), /No queued or currently reading books/i);
+    await page.locator("[data-queue-view-toggle]").click();
+    await page.locator("[data-density-toggle]").click();
+    assert.equal(await page.locator("[data-book-series-app]").getAttribute("data-density"), "compact", "compact density should be active");
+    assert.match(page.url(), /density=compact/, "compact density should be shareable in the URL");
+    await page.locator("[data-density-toggle]").click();
+    const firstCard = page.locator("[data-book-card]").first();
+    const secondCard = page.locator("[data-book-card]").nth(1);
+    await firstCard.focus();
+    await firstCard.press("ArrowRight");
+    assert.equal(await secondCard.evaluate((node) => document.activeElement === node), true, "ArrowRight should move book-card focus");
+    assert.match(await firstCard.getAttribute("aria-label"), /He Who Fights with Monsters.*book 1.*Read.*Audible/i, "book card accessible label should include title, order, status, and platforms");
+    const download = page.waitForEvent("download");
+    await page.locator("[data-export-view]").click();
+    assert.equal((await download).suggestedFilename(), "book-series-current-view.csv", "export should download current view CSV");
     await page.locator("[data-missing-series-toggle]").click();
     assert.equal(await page.locator("[data-series-stack] > article").count(), 7, "missing-series view should show only series with gaps");
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').count(), 0, "missing-series view should hide complete series");
@@ -80,16 +99,19 @@ try {
     assert.match(await page.locator("[data-book-series-app]").innerText(), /Carl's Doomsday Scenario/);
     await page.locator("[data-status-filter] button", { hasText: "Missing" }).click();
     await page.locator("[data-series-sort]").selectOption("coverage");
+    await page.locator("[data-missing-series-toggle]").click();
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-book-series-app]");
     await page.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("SOURCE: GITHUB"));
     assert.equal(await page.locator("[data-library-search]").inputValue(), "doomsday", "search should persist across reloads");
     assert.equal(await page.locator("[data-series-sort]").inputValue(), "coverage", "series sort should persist across reloads");
     assert.match(await page.locator("[data-status-filter] button.active").innerText(), /Missing/, "status filter should persist across reloads");
+    assert.match(page.url(), /view=missing/, "series view should be shareable in the URL");
     assert.equal(await page.locator("[data-series-stack] > article").count(), 1, "persisted search and status should restore the filtered row");
     await page.locator("[data-library-search]").fill("");
     await page.locator("[data-status-filter] button", { hasText: "All" }).click();
     await page.locator("[data-series-sort]").selectOption("library");
+    await page.locator("[data-missing-series-toggle]").click();
     assert.equal(await page.locator('[data-series-id="dungeon-crawler-carl"]').getAttribute("data-series-state"), "missing", "Dungeon Crawler Carl should show missing series state");
     assert.match(await page.locator('[data-series-id="dungeon-crawler-carl"] [data-series-meter]').innerText(), /MISSING 6/);
     assert.equal(await page.locator('[data-series-id="the-stormlight-archive"]').getAttribute("data-series-state"), "read", "fully tracked Audible series should show read-all state");
@@ -164,6 +186,8 @@ try {
           author: "Verifier",
           accent: "#38bdf8",
           summary: "Cached fallback test.",
+          priority: "Buy next",
+          note: "Keep this one visible.",
           books: [{
             order: 1,
             title: "Cached Book",
@@ -171,6 +195,7 @@ try {
             status: "read",
             platforms: ["cache"],
             source: "Verifier fixture",
+            publicationYear: 2026,
           }],
         }],
       },
@@ -181,7 +206,40 @@ try {
   const offlineText = await offlinePage.locator("[data-book-series-app]").innerText();
   assert.match(offlineText, /Source: Cached GitHub 2026-08-31/i, "offline load should use cached GitHub data");
   assert.match(offlineText, /Cache Test Series/);
+  assert.match(offlineText, /Buy next.*Keep this one visible/i, "series notes and priority should render when present");
+  assert.match(offlineText, /2026/, "publication metadata should render when present");
   assert.match(offlineText, /1\s+visible/i);
+  await offlinePage.locator("[data-book-card]").click();
+  assert.equal(await offlinePage.locator("[data-source-link]").getAttribute("href"), "https://github.com/anboas/reading-list-data/blob/main/books.json", "book detail should link to source data");
+  await offlinePage.route("https://covers.openlibrary.org/**", (route) => route.abort());
+  await offlinePage.evaluate(() => {
+    localStorage.setItem("book-series-tracker:library", JSON.stringify({
+      cachedAt: "2026-08-31T12:00:00.000Z",
+      library: {
+        updatedAt: "cover-test",
+        platforms: [],
+        series: [{
+          id: "cover-test-series",
+          title: "Cover Test Series",
+          author: "Verifier",
+          summary: "Cover fallback test.",
+          books: [{
+            order: 1,
+            title: "No Cover Book",
+            author: "Verifier",
+            status: "unowned",
+            platforms: [],
+            source: "Verifier fixture",
+            coverUrl: "https://covers.openlibrary.org/b/id/fail-L.jpg",
+          }],
+        }],
+      },
+    }));
+  });
+  await offlinePage.reload({ waitUntil: "domcontentloaded" });
+  await offlinePage.waitForFunction(() => document.querySelector("[data-book-series-app]")?.innerText.includes("CACHED GITHUB"));
+  await offlinePage.waitForSelector('[data-cover-state="missing"]');
+  assert.match(await offlinePage.locator('[data-cover-state="missing"]').first().innerText(), /No cover/i, "missing covers should show a quiet diagnostic");
   await offlinePage.close();
 
   console.log("Verified Book Series Tracker desktop/mobile.");

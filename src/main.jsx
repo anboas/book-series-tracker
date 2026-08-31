@@ -4,6 +4,7 @@ import { fallbackLibrary } from "./fallbackLibrary.js";
 import "./styles.css";
 
 const DATA_URL = "https://raw.githubusercontent.com/anboas/reading-list-data/main/books.json";
+const DATA_WEB_URL = "https://github.com/anboas/reading-list-data/blob/main/books.json";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
 const CONTROL_STORAGE_KEY = "book-series-tracker:controls";
 const LIBRARY_CACHE_KEY = "book-series-tracker:library";
@@ -67,18 +68,32 @@ function readStoredControls() {
     searchQuery: "",
     seriesView: "all",
     hideCompletedSeries: false,
+    density: "cover",
   };
 
   try {
     const parsed = JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || "{}");
-    return {
+    const params = new URLSearchParams(window.location.search);
+    const controls = {
       statusFilter: STATUS[parsed.statusFilter] ? parsed.statusFilter : defaults.statusFilter,
       platformFilter: typeof parsed.platformFilter === "string" ? parsed.platformFilter : defaults.platformFilter,
       seriesSort: SERIES_SORT[parsed.seriesSort] ? parsed.seriesSort : defaults.seriesSort,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : defaults.searchQuery,
-      seriesView: parsed.seriesView === "missing" ? "missing" : defaults.seriesView,
+      seriesView: ["missing", "queue"].includes(parsed.seriesView) ? parsed.seriesView : defaults.seriesView,
       hideCompletedSeries: typeof parsed.hideCompletedSeries === "boolean" ? parsed.hideCompletedSeries : defaults.hideCompletedSeries,
+      density: parsed.density === "compact" ? "compact" : defaults.density,
     };
+    const status = params.get("status");
+    const sort = params.get("sort");
+    const view = params.get("view");
+    if (STATUS[status]) controls.statusFilter = status;
+    if (SERIES_SORT[sort]) controls.seriesSort = sort;
+    if (params.has("platform")) controls.platformFilter = params.get("platform") || "all";
+    if (params.has("q")) controls.searchQuery = params.get("q") || "";
+    if (["all", "missing", "queue"].includes(view)) controls.seriesView = view;
+    if (params.has("hideComplete")) controls.hideCompletedSeries = params.get("hideComplete") === "1";
+    if (params.get("density") === "compact") controls.density = "compact";
+    return controls;
   } catch {
     return defaults;
   }
@@ -91,6 +106,30 @@ function writeStoredControls(controls) {
     // Storage can be unavailable in private contexts; controls still work for the session.
   }
 }
+
+function writeUrlControls(controls) {
+  const defaults = readStoredControls.defaults;
+  const params = new URLSearchParams();
+  if (controls.statusFilter !== defaults.statusFilter) params.set("status", controls.statusFilter);
+  if (controls.platformFilter !== defaults.platformFilter) params.set("platform", controls.platformFilter);
+  if (controls.seriesSort !== defaults.seriesSort) params.set("sort", controls.seriesSort);
+  if (controls.searchQuery.trim()) params.set("q", controls.searchQuery.trim());
+  if (controls.seriesView !== defaults.seriesView) params.set("view", controls.seriesView);
+  if (controls.hideCompletedSeries) params.set("hideComplete", "1");
+  if (controls.density !== defaults.density) params.set("density", controls.density);
+  const nextUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+  window.history.replaceState(null, "", nextUrl);
+}
+
+readStoredControls.defaults = {
+  statusFilter: "all",
+  platformFilter: "all",
+  seriesSort: "library",
+  searchQuery: "",
+  seriesView: "all",
+  hideCompletedSeries: false,
+  density: "cover",
+};
 
 function readCachedLibrary() {
   try {
@@ -272,6 +311,61 @@ function nextMissingBookFor(series) {
     .sort((a, b) => (a.order || 0) - (b.order || 0))[0] || null;
 }
 
+function visibleBooksFor(series = []) {
+  return series.flatMap((item) => (
+    (item.books || []).map((book) => ({
+      ...book,
+      seriesTitle: item.title,
+      seriesAuthor: item.author,
+    }))
+  ));
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function exportVisibleBooks(series) {
+  const rows = visibleBooksFor(series);
+  const headers = ["series", "order", "title", "author", "status", "platforms", "source"];
+  const csv = [
+    headers.join(","),
+    ...rows.map((book) => headers.map((header) => csvEscape(
+      header === "series"
+        ? book.seriesTitle
+        : header === "platforms"
+          ? (book.platforms || []).join("|")
+          : book[header] || "",
+    )).join(",")),
+  ].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "book-series-current-view.csv";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
+function jumpToSeries(seriesId) {
+  if (!seriesId) return;
+  document.querySelector(`[data-series-id="${CSS.escape(seriesId)}"]`)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+}
+
+function platformLabelsFor(book, platforms) {
+  const labels = (book.platforms || []).map((platformId) => platforms[platformId]?.label || platformId);
+  return labels.length ? labels : ["Not owned"];
+}
+
+function bookMetadataFor(book) {
+  return book.releaseDate || book.publicationDate || book.year || book.publicationYear || "";
+}
+
 function App() {
   const { library, source } = useLibrary();
   const platforms = useMemo(() => platformMap(library.platforms), [library.platforms]);
@@ -282,6 +376,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState(initialControls.searchQuery);
   const [seriesView, setSeriesView] = useState(initialControls.seriesView);
   const [hideCompletedSeries, setHideCompletedSeries] = useState(initialControls.hideCompletedSeries);
+  const [density, setDensity] = useState(initialControls.density);
   const [selectedBook, setSelectedBook] = useState(null);
 
   useEffect(() => {
@@ -291,8 +386,10 @@ function App() {
   }, [library.platforms, platformFilter, platforms]);
 
   useEffect(() => {
-    writeStoredControls({ statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries });
-  }, [hideCompletedSeries, platformFilter, searchQuery, seriesSort, seriesView, statusFilter]);
+    const controls = { statusFilter, platformFilter, seriesSort, searchQuery, seriesView, hideCompletedSeries, density };
+    writeStoredControls(controls);
+    writeUrlControls(controls);
+  }, [density, hideCompletedSeries, platformFilter, searchQuery, seriesSort, seriesView, statusFilter]);
 
   const filteredSeries = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -301,6 +398,7 @@ function App() {
       index,
       baseBooks: (series.books || []).filter((book) => {
         if (statusFilter !== "all" && book.status !== statusFilter) return false;
+        if (seriesView === "queue" && !["queued", "reading"].includes(book.status)) return false;
         if (platformFilter !== "all" && !(book.platforms || []).includes(platformFilter)) return false;
         return true;
       }),
@@ -327,6 +425,7 @@ function App() {
       .filter((series) => {
         const fullState = seriesStateFor(series.sortStats).tone;
         if (seriesView === "missing" && series.sortStats.unowned === 0) return false;
+        if (seriesView === "queue" && series.books.length === 0) return false;
         if (hideCompletedSeries && fullState === "read") return false;
         if (normalizedQuery && series.books.length === 0) return false;
         return true;
@@ -347,7 +446,7 @@ function App() {
   };
 
   return (
-    <main className="library-app" onClick={clearSelectedBook} data-book-series-app>
+    <main className="library-app" data-density={density} onClick={clearSelectedBook} data-book-series-app>
       <header className="app-header">
         <div className="brand-block">
           <span className="eyebrow">Reading control surface</span>
@@ -414,6 +513,14 @@ function App() {
           >
             Gaps only
           </button>
+          <button
+            type="button"
+            className={seriesView === "queue" ? "active" : ""}
+            onClick={() => setSeriesView(seriesView === "queue" ? "all" : "queue")}
+            data-queue-view-toggle
+          >
+            Queue
+          </button>
           <label className="check-control">
             <input
               type="checkbox"
@@ -423,6 +530,14 @@ function App() {
             />
             <span>Hide complete</span>
           </label>
+          <button
+            type="button"
+            className={density === "compact" ? "active" : ""}
+            onClick={() => setDensity(density === "compact" ? "cover" : "compact")}
+            data-density-toggle
+          >
+            Compact
+          </button>
         </div>
         <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} aria-label="Filter by platform">
           <option value="all">All platforms</option>
@@ -435,6 +550,15 @@ function App() {
             <option key={id} value={id}>{sort.label}</option>
           ))}
         </select>
+        <select value="" onChange={(event) => jumpToSeries(event.target.value)} aria-label="Jump to series" data-series-jump>
+          <option value="">Jump to series</option>
+          {filteredSeries.map((series) => (
+            <option key={series.id} value={series.id}>{series.title}</option>
+          ))}
+        </select>
+        <button type="button" className="export-button" onClick={() => exportVisibleBooks(filteredSeries)} data-export-view>
+          Export
+        </button>
         <a href={DATA_URL} target="_blank" rel="noreferrer">GitHub data</a>
       </section>
 
@@ -452,7 +576,7 @@ function App() {
         ) : null}
 
         <section className="series-stack" data-series-stack>
-          {filteredSeries.map((series) => (
+          {filteredSeries.length ? filteredSeries.map((series) => (
             <SeriesRow
               key={series.id}
               series={series}
@@ -460,7 +584,11 @@ function App() {
               selected={selected}
               onSelect={setSelectedBook}
             />
-          ))}
+          )) : (
+            <div className="empty-row" data-empty-view>
+              {seriesView === "queue" ? "No queued or currently reading books in this view." : "No visible series match this view."}
+            </div>
+          )}
         </section>
       </div>
     </main>
@@ -503,6 +631,11 @@ function SeriesRow({ series, platforms, selected, onSelect }) {
           <span>{series.author}</span>
           <h2>{series.title}</h2>
           <p>{series.summary}</p>
+          {series.priority || series.note ? (
+            <p className="series-note" data-series-note>
+              {[series.priority, series.note].filter(Boolean).join(" · ")}
+            </p>
+          ) : null}
           {nextMissing ? (
             <p className="next-missing" data-next-missing>
               <b>Next missing</b>
@@ -510,7 +643,11 @@ function SeriesRow({ series, platforms, selected, onSelect }) {
             </p>
           ) : null}
         </div>
-        <div className="series-meter" aria-label={`${series.title} progress`} data-series-meter>
+        <div
+          className="series-meter"
+          aria-label={`${series.title}: ${stats.read} read, ${stats.tracked} tracked, ${stats.unowned} missing, ${stats.progress}% coverage`}
+          data-series-meter
+        >
           <b>{state.label}</b>
           <em>{state.detail}</em>
           <strong>{stats.read}/{stats.books}</strong>
@@ -521,7 +658,13 @@ function SeriesRow({ series, platforms, selected, onSelect }) {
         {series.books.length ? series.books.map((book) => (
           <BookCard
             key={`${series.id}-${book.order}`}
-            book={{ ...book, seriesTitle: series.title, seriesAccent: series.accent }}
+            book={{
+              ...book,
+              seriesTitle: series.title,
+              seriesAccent: series.accent,
+              seriesNote: series.note,
+              seriesPriority: series.priority,
+            }}
             platforms={platforms}
             active={selected?.title === book.title && selected?.order === book.order}
             onSelect={onSelect}
@@ -538,6 +681,9 @@ function BookCard({ book, platforms, active, onSelect }) {
   const firstPlatform = platforms[(book.platforms || [])[0]];
   const borderColor = firstPlatform?.color || "#475569";
   const status = STATUS[book.status] || STATUS.unowned;
+  const platformLabels = platformLabelsFor(book, platforms);
+  const metadata = bookMetadataFor(book);
+  const accessibleLabel = `${book.title}, ${book.seriesTitle} book ${book.order}, ${status.label}, ${platformLabels.join(", ")}`;
 
   return (
     <button
@@ -549,15 +695,24 @@ function BookCard({ book, platforms, active, onSelect }) {
         onSelect(book);
       }}
       data-book-card
+      aria-label={accessibleLabel}
+      onKeyDown={(event) => {
+        if (!["ArrowRight", "ArrowLeft"].includes(event.key)) return;
+        event.preventDefault();
+        const cards = [...event.currentTarget.closest("[data-book-rail]").querySelectorAll("[data-book-card]")];
+        const currentIndex = cards.indexOf(event.currentTarget);
+        const nextIndex = event.key === "ArrowRight"
+          ? Math.min(cards.length - 1, currentIndex + 1)
+          : Math.max(0, currentIndex - 1);
+        cards[nextIndex]?.focus();
+      }}
     >
       <span className={`status-pill status-pill--${status.tone}`}>{status.label}</span>
       <span className="book-order">#{book.order}</span>
-      <span className="cover-frame" aria-hidden="true">
-        <span className="cover-title">{book.title}</span>
-        <BookCoverImage book={book} />
-      </span>
+      <CoverFrame book={book} />
       <span className="book-title">{book.title}</span>
-      <span className="platform-dots" aria-label="Platforms">
+      {metadata ? <span className="book-meta">{metadata}</span> : null}
+      <span className="platform-dots" aria-hidden="true">
         {(book.platforms || []).length ? book.platforms.map((platformId) => (
           <i key={platformId} style={{ backgroundColor: platforms[platformId]?.color || "#64748b" }} title={platforms[platformId]?.label || platformId} />
         )) : <i className="empty" title="Not owned" />}
@@ -566,13 +721,30 @@ function BookCard({ book, platforms, active, onSelect }) {
   );
 }
 
-function BookCoverImage({ book, className = "" }) {
+function CoverFrame({ book, className = "", imageClassName = "" }) {
+  const [state, setState] = useState(book.coverUrl ? "loading" : "missing");
+
+  useEffect(() => {
+    setState(book.coverUrl ? "loading" : "missing");
+  }, [book.coverUrl]);
+
+  return (
+    <span className={`${className || "cover-frame"} cover-frame--${state}`} aria-hidden="true" data-cover-state={state}>
+      <span className="cover-title">{book.title}</span>
+      <BookCoverImage book={book} className={imageClassName} onStateChange={setState} />
+      {state === "missing" ? <span className="cover-diagnostic">No cover</span> : null}
+    </span>
+  );
+}
+
+function BookCoverImage({ book, className = "", onStateChange = () => {} }) {
   const [src, setSrc] = useState(book.coverUrl || "");
   const [hidden, setHidden] = useState(!book.coverUrl);
 
   useEffect(() => {
     setSrc(book.coverUrl || "");
     setHidden(!book.coverUrl);
+    onStateChange(book.coverUrl ? "loading" : "missing");
   }, [book.coverUrl]);
 
   if (!src || hidden) return null;
@@ -583,12 +755,15 @@ function BookCoverImage({ book, className = "" }) {
       src={src}
       alt=""
       loading="lazy"
+      onLoad={() => onStateChange("loaded")}
       onError={() => {
         resolveCoverUrl(book).then((nextSrc) => {
           if (nextSrc && nextSrc !== src) {
             setSrc(nextSrc);
+            onStateChange("loading");
           } else {
             setHidden(true);
+            onStateChange("missing");
           }
         });
       }}
@@ -599,17 +774,24 @@ function BookCoverImage({ book, className = "" }) {
 function BookDetail({ book, platforms }) {
   const ownedPlatforms = (book.platforms || []).map((platformId) => platforms[platformId]).filter(Boolean);
   const status = STATUS[book.status] || STATUS.unowned;
+  const metadata = bookMetadataFor(book);
 
   return (
     <>
-      <span className="detail-cover-frame" aria-hidden="true">
-        <span className="cover-title">{book.title}</span>
-        <BookCoverImage book={book} className="detail-cover" />
-      </span>
+      <CoverFrame book={book} className="detail-cover-frame" imageClassName="detail-cover" />
       <div className="detail-copy">
         <span className={`status-pill status-pill--${status.tone}`}>{status.label}</span>
         <h2>{book.title}</h2>
         <p>{book.seriesTitle} book {book.order}{book.author ? ` by ${book.author}` : ""}</p>
+        {metadata ? <p className="detail-meta">Published {metadata}</p> : null}
+        {book.seriesPriority || book.seriesNote || book.priority || book.note ? (
+          <p className="detail-note" data-series-note>
+            {[book.seriesPriority, book.seriesNote, book.priority, book.note].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
+        <a className="source-link" href={DATA_WEB_URL} target="_blank" rel="noreferrer" data-source-link>
+          Source data
+        </a>
       </div>
       <div className="detail-platforms">
         <span>Platforms</span>
