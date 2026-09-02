@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 const DEFAULT_PROD_URL = "https://book-series-tracker.pages.dev/";
 const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-data/contents/books.json?ref=main";
 const EXPECTED_DATA = {
-  updatedAt: "2026-08-31",
+  updatedAt: "2026-09-01",
   books: 201,
   read: 169,
-  missing: 32,
+  missing: 26,
   platforms: 2,
   audible: 169,
-  audiobookshelf: 0,
+  audiobookshelf: 6,
 };
 
 function argValue(name) {

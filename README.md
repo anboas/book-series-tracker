@@ -32,10 +32,12 @@ npm run cover:check
 
 `npm run verify:prod-smoke` checks the production homepage/assets and the expected live data snapshot:
 
-- updatedAt: `2026-08-31`
+- updatedAt: `2026-09-01`
 - books: `201`
 - read: `169`
-- missing: `32`
+- owned: `6`
+- missing: `26`
+- AudioBookshelf: `6`
 
 `npm run cover:check` probes cover URLs independently and groups failures by series. It is intentionally separate from `npm run verify` because title-derived Open Library cover URLs can fail while the app still renders title plates or dynamically resolves alternatives.
 
