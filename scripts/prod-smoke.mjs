@@ -5,7 +5,7 @@ const GITHUB_API_DATA_URL = "https://api.github.com/repos/anboas/reading-list-da
 const EXPECTED_DATA = {
   updatedAt: "2026-09-01",
   books: 201,
-  read: 169,
+  read: 175,
   missing: 26,
   platforms: 2,
   audible: 169,

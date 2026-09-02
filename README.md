@@ -34,8 +34,8 @@ npm run cover:check
 
 - updatedAt: `2026-09-01`
 - books: `201`
-- read: `169`
-- owned: `6`
+- read: `175`
+- owned: `0`
 - missing: `26`
 - AudioBookshelf: `6`
 
